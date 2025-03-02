@@ -221,7 +221,8 @@ class MfSchemes
                 new Index(
                     'column_UNIQUE',
                     [
-                        'isin'
+                        'isin',
+                        'amfi_code'
                     ],
                     'UNIQUE'
                 )
