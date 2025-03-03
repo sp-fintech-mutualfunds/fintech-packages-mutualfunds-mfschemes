@@ -77,6 +77,35 @@ class MfSchemes extends BasePackage
         return false;
     }
 
+    public function getMfTypeByAmfiCode($amfi_code)
+    {
+        if ($this->config->databasetype === 'db') {
+            $conditions =
+                [
+                    'conditions'    => 'amfi_code = :amfi_code:',
+                    'bind'          =>
+                        [
+                            'amfi_code'  => $amfi_code
+                        ]
+                ];
+        } else {
+            $conditions =
+                [
+                    'conditions'    => [
+                        ['amfi_code', '=', $amfi_code]
+                    ]
+                ];
+        }
+
+        $mfscheme = $this->getByParams($conditions);
+
+        if ($mfscheme && count($mfscheme) > 0) {
+            return $mfscheme[0];
+        }
+
+        return false;
+    }
+
     public function addMfSchemes($data)
     {
         //
