@@ -45,7 +45,7 @@ class MfSchemes
                     ]
                 ),
                 new Column(
-                    'vendor_code',//Like Kuvera/Value Research
+                    'vendor',//Like Kuvera/Value Research
                     [
                         'type'          => Column::TYPE_VARCHAR,
                         'size'          => 50,
@@ -105,117 +105,7 @@ class MfSchemes
                         'type'          => Column::TYPE_SMALLINTEGER,
                         'notNull'       => true,
                     ]
-                ),
-
-
-                // new Column(
-                //     'lump_available',
-                //     [
-                //         'type'          => Column::TYPE_BOOLEAN,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'lump_min',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'lump_min_additional',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'lump_max',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'lump_multiplier',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-
-                // new Column(
-                //     'sip_available',
-                //     [
-                //         'type'          => Column::TYPE_BOOLEAN,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'sip_min',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'sip_max',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'sip_multiplier',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'sip_maximum_gap',
-                //     [
-                //         'type'          => Column::TYPE_SMALLINTEGER,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-
-                // new Column(
-                //     'redemption_allowed',
-                //     [
-                //         'type'          => Column::TYPE_BOOLEAN,
-                //         'notNull'       => true,
-                //     ]
-                // ),
-                // new Column(
-                //     'redemption_amount_multiple',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'redemption_amount_minimum',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'redemption_quantity_multiple',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-                // new Column(
-                //     'redemption_quantity_minimum',
-                //     [
-                //         'type'          => Column::TYPE_FLOAT,
-                //         'notNull'       => false,
-                //     ]
-                // ),
-
+                )
             ],
             'indexes' => [
                 new Index(

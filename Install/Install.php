@@ -3,7 +3,9 @@
 namespace Apps\Fintech\Packages\Mf\Schemes\Install;
 
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemes;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesDetails;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemes;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesDetails;
 use System\Base\BasePackage;
 use System\Base\Providers\ModulesServiceProvider\DbInstaller;
 
@@ -23,6 +25,14 @@ class Install extends BasePackage
                     'configParams'  =>
                         [
                             'min_index_chars' => 6
+                        ]
+                ],
+                'apps_fintech_mf_schemes_details'  => [
+                    'schema'        => new MfSchemesDetails,
+                    'model'         => new AppsFintechMfSchemesDetails,
+                    'configParams'  =>
+                        [
+                            'min_index_chars' => 3
                         ]
                 ]
             ];

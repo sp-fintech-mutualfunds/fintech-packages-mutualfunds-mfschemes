@@ -5,6 +5,7 @@ namespace Apps\Fintech\Packages\Mf\Schemes\Model;
 use Apps\Fintech\Packages\Mf\Amcs\Model\AppsFintechMfAmcs;
 use Apps\Fintech\Packages\Mf\Categories\Model\AppsFintechMfCategories;
 use Apps\Fintech\Packages\Mf\Navs\Model\AppsFintechMfNavs;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesDetails;
 use System\Base\BaseModel;
 
 class AppsFintechMfSchemes extends BaseModel
@@ -19,7 +20,7 @@ class AppsFintechMfSchemes extends BaseModel
 
     public $amfi_code;
 
-    public $vendor_code;
+    public $vendor;
 
     public $name;
 
@@ -37,6 +38,15 @@ class AppsFintechMfSchemes extends BaseModel
 
     public function initialize()
     {
+        $this->modelRelations['details']['relationObj'] = $this->hasOne(
+            'amfi_code',
+            AppsFintechMfSchemesDetails::class,
+            'amfi_code',
+            [
+                'alias'         => 'details'
+            ]
+        );
+
         $this->modelRelations['navs']['relationObj'] = $this->hasOne(
             'amfi_code',
             AppsFintechMfNavs::class,
