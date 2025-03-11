@@ -6,7 +6,7 @@
 	"app_type" : "fintech",
 	"category" : "mutualfunds",
 	"version" : "0.3.0",
-	"repo" : "https://github.com/sp-fintech/fintech-packages-mutualfunds-mfschemes",
+	"repo" : "https://github.com/sp-fintech-mutualfunds/fintech-packages-mutualfunds-mfschemes",
 	"class" : "Apps\\Fintech\\Packages\\Mf\\Schemes\\MfSchemes",
 	"dependencies" : 
 	{
