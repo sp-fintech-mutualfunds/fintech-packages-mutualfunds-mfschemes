@@ -358,4 +358,56 @@ class MfSchemes extends BasePackage
             $this->addResponse($e->getMessage(), 1);
         }
     }
+
+    public function searchSchemesForAMC($data)
+    {
+        if (!isset($data['amc_id'])) {
+            $this->addResponse('AMC ID not set', 1);
+
+            return false;
+        }
+
+        if ($this->config->databasetype === 'db') {
+            $conditions =
+                [
+                    'conditions'    => 'amc_id = :amc_id:',
+                    'bind'          =>
+                        [
+                            'amc_id'       => (int) $data['amc_id'],
+                        ]
+                ];
+        } else {
+            $conditions =
+                [
+                    'conditions'    => ['amc_id', '=', (int) $data['amc_id']]
+                ];
+        }
+
+        $schemesArr = $this->getByParams($conditions);
+
+        if ($schemesArr && count($schemesArr) > 0) {
+            $schemes = [];
+
+            foreach ($schemesArr as $scheme) {
+                if (str_contains($scheme['isin'], 'INFINF')) {//Unknwon ISIN
+                    continue;
+                }
+
+                if (str_contains(strtolower($scheme['name']), strtolower($data['search']))) {
+                    $schemes[$scheme['id']]['id'] = $scheme['id'];
+                    $schemes[$scheme['id']]['amfi_code'] = $scheme['amfi_code'];
+                    $schemes[$scheme['id']]['name'] = $scheme['name'];
+                    $schemes[$scheme['id']]['isin'] = $scheme['isin'];
+                }
+            }
+
+            $this->addResponse('Found ' . count($schemes) . ' Schemes', 0, ['schemes' => $schemes]);
+
+            return $schemes;
+        }
+
+        $this->addResponse('Found 0 Schemes', 0, ['schemes' => []]);
+
+        return [];
+    }
 }
