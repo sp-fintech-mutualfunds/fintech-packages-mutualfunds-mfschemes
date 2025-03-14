@@ -132,13 +132,13 @@ class MfSchemes
                     'isin',
                     'isin_reinvest',
                     'amfi_code',
+                    'amc_id',
                     'name',
                     'scheme_type',
                     'expense_ratio_type',
                     'management_type',
                     'plan_type',
-                    'category_id',
-                    'amc_id'
+                    'category_id'
                 ],
                 'INDEX'
             )
