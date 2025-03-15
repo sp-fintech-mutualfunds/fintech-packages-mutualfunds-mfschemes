@@ -95,14 +95,14 @@ class MfSchemes extends BasePackage
                     'conditions'    => 'amfi_code = :amfi_code:',
                     'bind'          =>
                         [
-                            'amfi_code'  => $amfi_code
+                            'amfi_code'  => (int) $amfi_code
                         ]
                 ];
         } else {
             $conditions =
                 [
                     'conditions'    => [
-                        ['amfi_code', '=', $amfi_code]
+                        ['amfi_code', '=', (int) $amfi_code]
                     ]
                 ];
         }
