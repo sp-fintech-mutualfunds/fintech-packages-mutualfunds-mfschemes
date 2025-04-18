@@ -410,4 +410,15 @@ class MfSchemes extends BasePackage
 
         return [];
     }
+
+    public function getSchemeLatestNav($schemeId)
+    {
+        $scheme = $this->getSchemeById($schemeId);
+
+        if ($scheme) {
+            return $scheme['navs']['latest_nav'];
+        }
+
+        return false;
+    }
 }
