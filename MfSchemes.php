@@ -49,8 +49,6 @@ class MfSchemes extends BasePackage
             return $scheme;
         } else {
             if ($this->ffData) {
-                $this->ffData = $this->jsonData($this->ffData, true);
-
                 return $this->ffData;
             }
         }
@@ -415,7 +413,7 @@ class MfSchemes extends BasePackage
     {
         $scheme = $this->getSchemeById($schemeId);
 
-        if ($scheme) {
+        if ($scheme && isset($scheme['navs']['latest_nav'])) {
             return $scheme['navs']['latest_nav'];
         }
 
