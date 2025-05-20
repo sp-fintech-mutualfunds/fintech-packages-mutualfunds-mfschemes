@@ -49,8 +49,6 @@ class MfSchemes extends BasePackage
             return $scheme;
         } else {
             if ($this->ffData) {
-                $this->ffData = $this->jsonData($this->ffData, true);
-
                 return $this->ffData;
             }
         }
@@ -409,5 +407,16 @@ class MfSchemes extends BasePackage
         $this->addResponse('Found 0 Schemes', 0, ['schemes' => []]);
 
         return [];
+    }
+
+    public function getSchemeLatestNav($schemeId)
+    {
+        $scheme = $this->getSchemeById($schemeId);
+
+        if ($scheme && isset($scheme['navs']['latest_nav'])) {
+            return $scheme['navs']['latest_nav'];
+        }
+
+        return false;
     }
 }
