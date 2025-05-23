@@ -419,4 +419,43 @@ class MfSchemes extends BasePackage
 
         return false;
     }
+
+    public function getSchemeFromAmfiCodeOrSchemeId(&$data)
+    {
+        if (isset($data['scheme_id']) && $data['scheme_id'] !== '') {
+            $scheme = [$this->getSchemeById((int) $data['scheme_id'])];
+        } else if (isset($data['amfi_code']) && $data['amfi_code'] !== '') {
+            if ($this->config->databasetype === 'db') {
+                $conditions =
+                    [
+                        'conditions'    => 'amfi_code = :amfi_code:',
+                        'bind'          =>
+                            [
+                                'amfi_code'       => (int) $data['amfi_code'],
+                            ]
+                    ];
+            } else {
+                $conditions =
+                    [
+                        'conditions'    => ['amfi_code', '=', (int) $data['amfi_code']]
+                    ];
+            }
+
+            $scheme = $this->getByParams($conditions);
+
+            if ($scheme && isset($scheme[0])) {
+                $scheme = [$this->getSchemeById((int) $scheme[0]['id'])];
+            }
+        }
+
+        if (isset($scheme) && isset($scheme[0])) {
+            $scheme = $scheme[0];
+
+            $data['scheme_id'] = (int) $scheme['id'];
+
+            return $scheme;
+        }
+
+        return false;
+    }
 }
