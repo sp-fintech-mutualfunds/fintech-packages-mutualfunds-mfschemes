@@ -121,30 +121,12 @@ class MfSchemes extends BasePackage
 
     public function updateMfSchemes($data)
     {
-        $mfschemes = $this->getById($id);
-
-        if ($mfschemes) {
-            //
-            $this->addResponse('Success');
-
-            return;
-        }
-
-        $this->addResponse('Error', 1);
+        //
     }
 
     public function removeMfSchemes($data)
     {
-        $mfschemes = $this->getById($id);
-
-        if ($mfschemes) {
-            //
-            $this->addResponse('Success');
-
-            return;
-        }
-
-        $this->addResponse('Error', 1);
+        //
     }
 
     public function getAvailableApis($getAll = false, $returnApis = true)
