@@ -18,8 +18,14 @@ class MfSchemes extends BasePackage
 
     protected $settings = Settings::class;
 
+    protected $schemes = [];
+
     public function getSchemeById(int $id)
     {
+        if (isset($this->schemes[$id])) {
+            return $this->schemes[$id];
+        }
+
         $this->setFFRelations(true);
 
         $this->getFirst('id', $id);
@@ -46,9 +52,18 @@ class MfSchemes extends BasePackage
                 $scheme['amc'] = $this->model->getamc()->toArray();
             }
 
+            if (!isset($this->schemes[$id])) {
+                $this->schemes[$id] = $scheme;
+            }
+
             return $scheme;
         } else {
             if ($this->ffData) {
+
+                if (!isset($this->schemes[$id])) {
+                    $this->schemes[$id] = $this->ffData;
+                }
+
                 return $this->ffData;
             }
         }
@@ -402,10 +417,14 @@ class MfSchemes extends BasePackage
         return false;
     }
 
-    public function getSchemeFromAmfiCodeOrSchemeId(&$data)
+    public function getSchemeFromAmfiCodeOrSchemeId(&$data, $includeNavs = true)
     {
         if (isset($data['scheme_id']) && $data['scheme_id'] !== '') {
-            $scheme = [$this->getSchemeById((int) $data['scheme_id'])];
+            if (isset($this->schemes[$data['scheme_id']])) {
+                $scheme = [$this->schemes[$data['scheme_id']]];
+            } else {
+                $scheme = [$this->getSchemeById((int) $data['scheme_id'])];
+            }
         } else if (isset($data['amfi_code']) && $data['amfi_code'] !== '') {
             if ($this->config->databasetype === 'db') {
                 $conditions =
@@ -426,7 +445,11 @@ class MfSchemes extends BasePackage
             $scheme = $this->getByParams($conditions);
 
             if ($scheme && isset($scheme[0])) {
-                $scheme = [$this->getSchemeById((int) $scheme[0]['id'])];
+                if (isset($this->schemes[$scheme[0]['id']])) {
+                    $scheme = [$this->schemes[$scheme[0]['id']]];
+                } else {
+                    $scheme = [$this->getSchemeById((int) $scheme[0]['id'])];
+                }
             }
         }
 
@@ -434,6 +457,12 @@ class MfSchemes extends BasePackage
             $scheme = $scheme[0];
 
             $data['scheme_id'] = (int) $scheme['id'];
+
+            if (!$includeNavs) {
+                if (isset($scheme['navs'])) {
+                    unset($scheme['navs']);
+                }
+            }
 
             return $scheme;
         }
