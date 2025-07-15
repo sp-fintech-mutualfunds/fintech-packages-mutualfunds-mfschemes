@@ -406,12 +406,18 @@ class MfSchemes extends BasePackage
         return [];
     }
 
-    public function getSchemeLatestNav($schemeId)
+    public function getSchemeNavByDate($schemeId, $date, $latest = false)
     {
         $scheme = $this->getSchemeById($schemeId);
 
-        if ($scheme && isset($scheme['navs']['latest_nav'])) {
-            return $scheme['navs']['latest_nav'];
+        if ($scheme) {
+            if (isset($scheme['navs'][$date])) {
+                return $scheme['navs'][$date];
+            }
+
+            if ($latest && isset($scheme['navs']['latest_nav'])) {
+                return $scheme['navs']['latest_nav'];
+            }
         }
 
         return false;
