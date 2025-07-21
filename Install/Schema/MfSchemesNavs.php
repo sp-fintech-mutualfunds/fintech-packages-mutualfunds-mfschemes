@@ -5,7 +5,7 @@ namespace Apps\Fintech\Packages\Mf\Schemes\Install\Schema;
 use Phalcon\Db\Column;
 use Phalcon\Db\Index;
 
-class MfSchemesDetails
+class MfSchemesNavs
 {
     public function columns()
     {
@@ -22,39 +22,24 @@ class MfSchemesDetails
                     ]
                 ),
                 new Column(
-                    'expense_ratio',
-                    [
-                        'type'          => Column::TYPE_FLOAT,
-                        'notNull'       => false,
-                    ]
-                ),
-                new Column(
-                    'expense_ratio_date',
+                    'last_updated',
                     [
                         'type'          => Column::TYPE_VARCHAR,
                         'size'          => 15,
-                        'notNull'       => false,
+                        'notNull'       => true,
                     ]
                 ),
+                new Column(
+                    'navs',
+                    [
+                        'type'          => Column::TYPE_JSON,
+                        'notNull'       => true,
+                    ]
+                )
             ],
             'options' => [
                 'TABLE_COLLATION' => 'utf8mb4_general_ci'
             ]
-        ];
-    }
-
-    public function indexes()
-    {
-        return
-        [
-            new Index(
-                'column_INDEX',
-                [
-                    'crisil_rating',
-                    'expense_ratio'
-                ],
-                'INDEX'
-            )
         ];
     }
 }

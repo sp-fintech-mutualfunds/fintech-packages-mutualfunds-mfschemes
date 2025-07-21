@@ -20,9 +20,17 @@ class MfSchemes extends BasePackage
 
     protected $schemes = [];
 
-    public function getSchemeById(int $id)
+    public function getSchemeById(int $id, $includeNavs = true, $includeNavsChunks = true)
     {
         if (isset($this->schemes[$id])) {
+            if (!$includeNavs) {
+                unset($this->schemes[$id]['navs']);
+            }
+
+            if (!$includeNavsChunks) {
+                unset($this->schemes[$id]['navs_chunks']);
+            }
+
             return $this->schemes[$id];
         }
 
@@ -43,10 +51,16 @@ class MfSchemes extends BasePackage
                 $scheme['navs'] = $this->model->getnavs()->toArray();
             }
 
+            $scheme['navs_chunks'] = [];
+            if ($this->model->getnavs_chunks()) {
+                $scheme['navs_chunks'] = $this->model->getnavs_chunks()->toArray();
+            }
+
             $scheme['category'] = [];
             if ($this->model->getcategory()) {
                 $scheme['category'] = $this->model->getcategory()->toArray();
             }
+
             $scheme['amc'] = [];
             if ($this->model->getamc()) {
                 $scheme['amc'] = $this->model->getamc()->toArray();
@@ -56,12 +70,27 @@ class MfSchemes extends BasePackage
                 $this->schemes[$id] = $scheme;
             }
 
+            if (!$includeNavs) {
+                unset($scheme['navs']);
+            }
+
+            if (!$includeNavsChunks) {
+                unset($scheme['navs_chunks']);
+            }
+
             return $scheme;
         } else {
             if ($this->ffData) {
-
                 if (!isset($this->schemes[$id])) {
                     $this->schemes[$id] = $this->ffData;
+                }
+
+                if (!$includeNavs) {
+                    unset($this->ffData['navs']);
+                }
+
+                if (!$includeNavsChunks) {
+                    unset($this->ffData['navs_chunks']);
                 }
 
                 return $this->ffData;
@@ -100,34 +129,34 @@ class MfSchemes extends BasePackage
         return false;
     }
 
-    public function getMfTypeByAmfiCode($amfi_code)
-    {
-        if ($this->config->databasetype === 'db') {
-            $conditions =
-                [
-                    'conditions'    => 'amfi_code = :amfi_code:',
-                    'bind'          =>
-                        [
-                            'amfi_code'  => (int) $amfi_code
-                        ]
-                ];
-        } else {
-            $conditions =
-                [
-                    'conditions'    => [
-                        ['amfi_code', '=', (int) $amfi_code]
-                    ]
-                ];
-        }
+    // public function getMfTypeByAmfiCode($amfi_code)
+    // {
+    //     if ($this->config->databasetype === 'db') {
+    //         $conditions =
+    //             [
+    //                 'conditions'    => 'amfi_code = :amfi_code:',
+    //                 'bind'          =>
+    //                     [
+    //                         'amfi_code'  => (int) $amfi_code
+    //                     ]
+    //             ];
+    //     } else {
+    //         $conditions =
+    //             [
+    //                 'conditions'    => [
+    //                     ['amfi_code', '=', (int) $amfi_code]
+    //                 ]
+    //             ];
+    //     }
 
-        $mfscheme = $this->getByParams($conditions);
+    //     $mfscheme = $this->getByParams($conditions);
 
-        if ($mfscheme && count($mfscheme) > 0) {
-            return $mfscheme[0];
-        }
+    //     if ($mfscheme && count($mfscheme) > 0) {
+    //         return $mfscheme[0];
+    //     }
 
-        return false;
-    }
+    //     return false;
+    // }
 
     public function addMfSchemes($data)
     {
@@ -426,53 +455,88 @@ class MfSchemes extends BasePackage
     public function getSchemeFromAmfiCodeOrSchemeId(&$data, $includeNavs = true)
     {
         if (isset($data['scheme_id']) && $data['scheme_id'] !== '') {
-            if (isset($this->schemes[$data['scheme_id']])) {
-                $scheme = [$this->schemes[$data['scheme_id']]];
-            } else {
-                $scheme = [$this->getSchemeById((int) $data['scheme_id'])];
-            }
+            $schemeId = (int) $data['scheme_id'];
         } else if (isset($data['amfi_code']) && $data['amfi_code'] !== '') {
-            if ($this->config->databasetype === 'db') {
-                $conditions =
-                    [
-                        'conditions'    => 'amfi_code = :amfi_code:',
-                        'bind'          =>
-                            [
-                                'amfi_code'       => (int) $data['amfi_code'],
-                            ]
-                    ];
-            } else {
-                $conditions =
-                    [
-                        'conditions'    => ['amfi_code', '=', (int) $data['amfi_code']]
-                    ];
-            }
-
-            $scheme = $this->getByParams($conditions);
-
-            if ($scheme && isset($scheme[0])) {
-                if (isset($this->schemes[$scheme[0]['id']])) {
-                    $scheme = [$this->schemes[$scheme[0]['id']]];
-                } else {
-                    $scheme = [$this->getSchemeById((int) $scheme[0]['id'])];
-                }
-            }
+            $schemeId = (int) $data['amfi_code'];
         }
 
-        if (isset($scheme) && isset($scheme[0])) {
-            $scheme = $scheme[0];
+        $scheme = $this->getSchemeById($schemeId, $includeNavs);
 
+        if ($scheme) {
             $data['scheme_id'] = (int) $scheme['id'];
-
-            if (!$includeNavs) {
-                if (isset($scheme['navs'])) {
-                    unset($scheme['navs']);
-                }
-            }
 
             return $scheme;
         }
 
         return false;
+    }
+
+    public function getSchemeNavChunks($data)
+    {
+        $scheme = $this->getSchemeById((int) $data['scheme_id'], false, true);
+
+        if (isset($data['chunk_size']) &&
+            isset($scheme['navs_chunks']['navs_chunks'][$data['chunk_size']])
+        ) {
+            if ($data['chunk_size'] === 'all') {
+                $this->addResponse('Ok', 0, ['chunks' => $scheme['navs_chunks']['navs_chunks']]);
+            } else {
+                $this->addResponse('Ok', 0, ['chunks' => $scheme['navs_chunks']['navs_chunks'][$data['chunk_size']]]);
+            }
+
+            return true;
+        } else if ($data['range'] &&
+                   isset($scheme['navs_chunks']['navs_chunks']['all'])
+        ) {
+            if (count($data['range']) < 2) {
+                $this->addResponse('Please provide correct range dates', 1);
+
+                return false;
+            }
+
+            try {
+                $start = (\Carbon\Carbon::parse($data['range'][0]));
+                $end = (\Carbon\Carbon::parse($data['range'][1]));
+
+                if ($end->lt($start)) {
+                    $this->addResponse('Please provide correct range dates', 1);
+
+                    return false;
+                }
+
+                $daysDiff = $start->diffInDays($end);
+
+                if (!isset($scheme['navs_chunks']['navs_chunks']['all'][$data['range'][0]]) ||
+                    !isset($scheme['navs_chunks']['navs_chunks']['all'][$data['range'][1]])
+                ) {
+                    $this->addResponse('Please provide correct range dates', 1);
+
+                    return false;
+                }
+
+                $datesKeys = array_keys($scheme['navs_chunks']['navs_chunks']['all']);
+                $startDateKey = array_search($data['range'][0], $datesKeys);
+                $chunks = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
+
+                if (count($chunks) > 0) {
+                    $firstChunk = $this->helper->first($chunks);
+
+                    foreach ($chunks as $chunkDate => $chunk) {
+                        $chunks[$chunkDate]['diff'] = numberFormatPrecision($chunk['nav'] - $firstChunk['nav'], 4);
+                        $chunks[$chunkDate]['diff_percent'] = numberFormatPrecision(($chunk['nav'] * 100 / $firstChunk['nav'] - 100), 2);
+                    }
+
+                    $this->addResponse('Ok', 0, ['chunks' => $chunks]);
+
+                    return true;
+                }
+            } catch (\throwable $e) {
+                $this->addResponse('Please provide correct range dates', 1);
+
+                return false;
+            }
+        }
+
+        $this->addResponse('No data found', 1);
     }
 }
