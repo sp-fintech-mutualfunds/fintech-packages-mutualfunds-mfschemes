@@ -8,6 +8,7 @@ use Apps\Fintech\Packages\Mf\Navs\Model\AppsFintechMfNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesDetails;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsChunks;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsRollingReturns;
 use System\Base\BaseModel;
 
 class AppsFintechMfSchemes extends BaseModel
@@ -39,6 +40,10 @@ class AppsFintechMfSchemes extends BaseModel
     public $closed;
 
     public $closed_date;
+
+    public $minimum_amount;
+
+    public $launch_date;
 
     public $start_date;
 
@@ -103,6 +108,15 @@ class AppsFintechMfSchemes extends BaseModel
             'id',
             [
                 'alias'         => 'navs_chunks'
+            ]
+        );
+
+        $this->modelRelations['rolling_returns']['relationObj'] = $this->hasOne(
+            'id',
+            AppsFintechMfSchemesNavsRollingReturns::class,
+            'id',
+            [
+                'alias'         => 'rolling_returns'
             ]
         );
 

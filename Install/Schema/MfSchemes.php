@@ -115,6 +115,22 @@ class MfSchemes
                     ]
                 ),
                 new Column(
+                    'minimum_amount',
+                    [
+                        'type'          => Column::TYPE_VARCHAR,
+                        'size'          => 50,
+                        'notNull'       => false,
+                    ]
+                ),
+                new Column(
+                    'launch_date',
+                    [
+                        'type'          => Column::TYPE_VARCHAR,
+                        'size'          => 15,
+                        'notNull'       => false,
+                    ]
+                ),
+                new Column(
                     'start_date',
                     [
                         'type'          => Column::TYPE_VARCHAR,

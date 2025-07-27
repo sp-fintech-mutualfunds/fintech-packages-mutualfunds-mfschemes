@@ -3,9 +3,13 @@
 namespace Apps\Fintech\Packages\Mf\Schemes\Install;
 
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemes;
-use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesDetails;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavs;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavsChunks;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavsRollingReturns;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemes;
-use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesDetails;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavs;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsChunks;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsRollingReturns;
 use System\Base\BasePackage;
 use System\Base\Providers\ModulesServiceProvider\DbInstaller;
 
@@ -27,14 +31,30 @@ class Install extends BasePackage
                             'min_index_chars' => 6
                         ]
                 ],
-                'apps_fintech_mf_schemes_details'  => [
-                    'schema'        => new MfSchemesDetails,
-                    'model'         => new AppsFintechMfSchemesDetails,
+                'apps_fintech_mf_schemes_navs'  => [
+                    'schema'        => new MfSchemesNavs,
+                    'model'         => new AppsFintechMfSchemesNavs,
                     'configParams'  =>
                         [
-                            'min_index_chars' => 3
+                            'min_index_chars' => 2
                         ]
-                ]
+                ],
+                'apps_fintech_mf_schemes_navs_chunks'  => [
+                    'schema'        => new MfSchemesNavsChunks,
+                    'model'         => new AppsFintechMfSchemesNavsChunks,
+                ],
+                'apps_fintech_mf_schemes_rolling_returns'  => [
+                    'schema'        => new MfSchemesNavsRollingReturns,
+                    'model'         => new AppsFintechMfSchemesNavsRollingReturns,
+                ],
+                // 'apps_fintech_mf_schemes_details'  => [
+                //     'schema'        => new MfSchemesDetails,
+                //     'model'         => new AppsFintechMfSchemesDetails,
+                //     'configParams'  =>
+                //         [
+                //             'min_index_chars' => 3
+                //         ]
+                // ]
             ];
 
         $this->dbInstaller = new DbInstaller;

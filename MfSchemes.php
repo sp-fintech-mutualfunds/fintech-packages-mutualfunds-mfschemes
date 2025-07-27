@@ -20,7 +20,7 @@ class MfSchemes extends BasePackage
 
     protected $schemes = [];
 
-    public function getSchemeById(int $id, $includeNavs = true, $includeNavsChunks = true)
+    public function getSchemeById(int $id, $includeNavs = true, $includeNavsChunks = true, $includeNavsRR = true)
     {
         if (isset($this->schemes[$id])) {
             if (!$includeNavs) {
@@ -29,6 +29,10 @@ class MfSchemes extends BasePackage
 
             if (!$includeNavsChunks) {
                 unset($this->schemes[$id]['navs_chunks']);
+            }
+
+            if (!$includeNavsRR) {
+                unset($this->schemes[$id]['rolling_returns']);
             }
 
             return $this->schemes[$id];
@@ -91,6 +95,10 @@ class MfSchemes extends BasePackage
 
                 if (!$includeNavsChunks) {
                     unset($this->ffData['navs_chunks']);
+                }
+
+                if (!$includeNavsRR) {
+                    unset($this->ffData['rolling_returns']);
                 }
 
                 return $this->ffData;
@@ -413,13 +421,8 @@ class MfSchemes extends BasePackage
             $schemes = [];
 
             foreach ($schemesArr as $scheme) {
-                if (str_contains($scheme['isin'], 'INFINF')) {//Unknwon ISIN
-                    continue;
-                }
-
                 if (str_contains(strtolower($scheme['name']), strtolower($data['search']))) {
                     $schemes[$scheme['id']]['id'] = $scheme['id'];
-                    $schemes[$scheme['id']]['amfi_code'] = $scheme['amfi_code'];
                     $schemes[$scheme['id']]['name'] = $scheme['name'];
                     $schemes[$scheme['id']]['isin'] = $scheme['isin'];
                 }
@@ -435,9 +438,54 @@ class MfSchemes extends BasePackage
         return [];
     }
 
+    public function searchSchemesForCategory($data)
+    {
+        if (!isset($data['category_id'])) {
+            $this->addResponse('Category ID not set', 1);
+
+            return false;
+        }
+
+        if ($this->config->databasetype === 'db') {
+            $conditions =
+                [
+                    'conditions'    => 'category_id = :category_id:',
+                    'bind'          =>
+                        [
+                            'category_id'       => (int) $data['category_id'],
+                        ]
+                ];
+        } else {
+            $conditions =
+                [
+                    'conditions'    => ['category_id', '=', (int) $data['category_id']]
+                ];
+        }
+
+        $schemesArr = $this->getByParams($conditions);
+
+        if ($schemesArr && count($schemesArr) > 0) {
+            $schemes = [];
+
+            foreach ($schemesArr as $scheme) {
+                if (str_contains(strtolower($scheme['name']), strtolower($data['search']))) {
+                    $schemes[$scheme['id']] = $scheme;
+                }
+            }
+
+            $this->addResponse('Found ' . count($schemes) . ' Schemes', 0, ['schemes' => $schemes]);
+
+            return $schemes;
+        }
+
+        $this->addResponse('Found 0 Schemes', 0, ['schemes' => []]);
+
+        return [];
+    }
+
     public function getSchemeNavByDate($schemeId, $date, $latest = false)
     {
-        $scheme = $this->getSchemeById($schemeId);
+        $scheme = $this->getSchemeById($schemeId, true, false, false);
 
         if ($scheme) {
             if (isset($scheme['navs'][$date])) {
@@ -460,7 +508,7 @@ class MfSchemes extends BasePackage
             $schemeId = (int) $data['amfi_code'];
         }
 
-        $scheme = $this->getSchemeById($schemeId, $includeNavs);
+        $scheme = $this->getSchemeById($schemeId, $includeNavs, false, false);
 
         if ($scheme) {
             $data['scheme_id'] = (int) $scheme['id'];
@@ -471,20 +519,40 @@ class MfSchemes extends BasePackage
         return false;
     }
 
+    public function getSchemeCompareData($data)
+    {
+
+    }
+
     public function getSchemeNavChunks($data)
     {
-        $scheme = $this->getSchemeById((int) $data['scheme_id'], false, true);
+        $scheme = $this->getSchemeById((int) $data['scheme_id'], false, true, false);
+
+        $responseData = [];
+        $responseData['chunks'] = [];
+        $responseData['trend'] = [];
+
+        foreach (['totalDays', 'up', 'down', 'neutral', 'minus5', 'minus5tominus4',
+                 'minus4tominus3', 'minus3tominus2', 'minus2tominus1', 'minus1to0',
+                 '0', '0to1', '1to2', '2to3', '3to4', '4to5', 'plus5'] as $trend
+        ) {
+            $responseData['trend'][$trend] = 0;
+        }
 
         if (isset($data['chunk_size']) &&
             isset($scheme['navs_chunks']['navs_chunks'][$data['chunk_size']])
         ) {
             if ($data['chunk_size'] === 'all') {
-                $this->addResponse('Ok', 0, ['chunks' => $scheme['navs_chunks']['navs_chunks']]);
+                $responseData['chunks'] = $scheme['navs_chunks']['navs_chunks'];
             } else {
-                $this->addResponse('Ok', 0, ['chunks' => $scheme['navs_chunks']['navs_chunks'][$data['chunk_size']]]);
+                $responseData['chunks'] = $scheme['navs_chunks']['navs_chunks'][$data['chunk_size']];
             }
 
-            return true;
+            $this->generateTrendData($scheme, $responseData);
+
+            $this->addResponse('Ok', 0, $responseData);
+
+            return $responseData;
         } else if ($data['range'] &&
                    isset($scheme['navs_chunks']['navs_chunks']['all'])
         ) {
@@ -516,19 +584,21 @@ class MfSchemes extends BasePackage
 
                 $datesKeys = array_keys($scheme['navs_chunks']['navs_chunks']['all']);
                 $startDateKey = array_search($data['range'][0], $datesKeys);
-                $chunks = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
+                $responseData['chunks'] = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
 
-                if (count($chunks) > 0) {
-                    $firstChunk = $this->helper->first($chunks);
+                if (count($responseData['chunks']) > 0) {
+                    $firstChunk = $this->helper->first($responseData['chunks']);
 
-                    foreach ($chunks as $chunkDate => $chunk) {
-                        $chunks[$chunkDate]['diff'] = numberFormatPrecision($chunk['nav'] - $firstChunk['nav'], 4);
-                        $chunks[$chunkDate]['diff_percent'] = numberFormatPrecision(($chunk['nav'] * 100 / $firstChunk['nav'] - 100), 2);
+                    foreach ($responseData['chunks'] as $chunkDate => $chunk) {
+                        $responseData['chunks'][$chunkDate]['diff'] = numberFormatPrecision($chunk['nav'] - $firstChunk['nav'], 4);
+                        $responseData['chunks'][$chunkDate]['diff_percent'] = numberFormatPrecision(($chunk['nav'] * 100 / $firstChunk['nav'] - 100), 2);
                     }
 
-                    $this->addResponse('Ok', 0, ['chunks' => $chunks]);
+                    $this->generateTrendData($scheme, $responseData, $daysDiff);
 
-                    return true;
+                    $this->addResponse('Ok', 0, $responseData);
+
+                    return $responseData;
                 }
             } catch (\throwable $e) {
                 $this->addResponse('Please provide correct range dates', 1);
@@ -538,5 +608,238 @@ class MfSchemes extends BasePackage
         }
 
         $this->addResponse('No data found', 1);
+    }
+
+    protected function generateTrendData($scheme, &$responseData, $daysDiff = null)
+    {
+        if (count($responseData['chunks']) !== count($scheme['navs_chunks']['navs_chunks']['all'])) {
+            $datesKeys = array_keys($scheme['navs_chunks']['navs_chunks']['all']);
+            $startDateKey = array_search($this->helper->firstKey($responseData['chunks']), $datesKeys);
+            if ($daysDiff) {
+                $trendChunks = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
+            } else {
+                $trendChunks = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey);
+            }
+        } else {
+            $trendChunks = $scheme['navs_chunks']['navs_chunks']['all'];
+        }
+
+        $responseData['trend']['totalDays'] = count($trendChunks);
+
+        foreach ($trendChunks as $trendDate => $trendValue) {
+            if (isset($trendValue['diff_percent']) &&
+                $trendValue['diff_percent'] == 0
+            ) {
+                $responseData['trend']['neutral']++;
+            } else {
+                if (isset($trendValue['trajectory']) &&
+                    $trendValue['trajectory'] === 'up'
+                ) {
+                    $responseData['trend']['up']++;
+                } else if (isset($trendValue['trajectory']) &&
+                           $trendValue['trajectory'] === 'down'
+                ) {
+                    $responseData['trend']['down']++;
+                }
+            }
+
+            if (isset($trendValue['diff_percent']) &&
+                $trendValue['diff_percent'] < 0
+            ) {
+                $trendValue['diff_percent'] = abs($trendValue['diff_percent']);
+
+                if ($trendValue['diff_percent'] > 0 && $trendValue['diff_percent'] <= 1) {
+                    $responseData['trend']['minus1to0']++;
+                } else if ($trendValue['diff_percent'] > 1 && $trendValue['diff_percent'] <= 2) {
+                    $responseData['trend']['minus2tominus1']++;
+                } else if ($trendValue['diff_percent'] > 2 && $trendValue['diff_percent'] <= 3) {
+                    $responseData['trend']['minus3tominus2']++;
+                } else if ($trendValue['diff_percent'] > 3 && $trendValue['diff_percent'] <= 4) {
+                    $responseData['trend']['minus4tominus3']++;
+                } else if ($trendValue['diff_percent'] > 4 && $trendValue['diff_percent'] <= 5) {
+                    $responseData['trend']['minus5tominus4']++;
+                } else if ($trendValue['diff_percent'] > 5) {
+                    $responseData['trend']['minus5']++;
+                }
+            } else if (isset($trendValue['diff_percent']) &&
+                       $trendValue['diff_percent'] > 0
+            ) {
+                if ($trendValue['diff_percent'] > 0 && $trendValue['diff_percent'] <= 1) {
+                    $responseData['trend']['0to1']++;
+                } else if ($trendValue['diff_percent'] > 1 && $trendValue['diff_percent'] <= 2) {
+                    $responseData['trend']['1to2']++;
+                } else if ($trendValue['diff_percent'] > 2 && $trendValue['diff_percent'] <= 3) {
+                    $responseData['trend']['2to3']++;
+                } else if ($trendValue['diff_percent'] > 3 && $trendValue['diff_percent'] <= 4) {
+                    $responseData['trend']['3to4']++;
+                } else if ($trendValue['diff_percent'] > 4 && $trendValue['diff_percent'] <= 5) {
+                    $responseData['trend']['4to5']++;
+                } else if ($trendValue['diff_percent'] > 5) {
+                    $responseData['trend']['plus5']++;
+                }
+            } else {
+                $responseData['trend']['0']++;
+            }
+        }
+    }
+
+    public function getSchemeRollingReturns($data)
+    {
+        if (!isset($data['scheme_id'])) {
+            $this->addResponse('Please provide Scheme ID', 1);
+
+            return false;
+        }
+
+        if (!isset($data['rr_period'])) {
+            $this->addResponse('Please provide Rolling Return Period', 1);
+
+            return false;
+        }
+
+        $scheme = $this->getSchemeById((int) $data['scheme_id'], false, false, true);
+
+        if (!isset($scheme['rolling_returns'][$data['rr_period']])) {
+            $this->addResponse('Rolling Returns for period not available.', 1);
+
+            return false;
+        }
+
+        if (!isset($data['start_date'])) {
+            $this->addResponse('Please provide Rolling Return Start Date', 1);
+
+            return false;
+        }
+
+        try {
+            $dataStartDate = \Carbon\Carbon::parse($data['start_date']);
+            $startDate = \Carbon\Carbon::parse($scheme['start_date']);
+            $endDate = \Carbon\Carbon::parse($scheme['navs_last_updated']);
+
+            if ($dataStartDate->lt($startDate)) {//If date is lt scheme start date.
+                $data['start_date'] = $startDate->toDateString();
+            }
+
+            if ($dataStartDate->gt($endDate)) {//If date is gt scheme end date.
+                $this->addResponse('Please provide correct Rolling Return start date', 1);
+
+                return false;
+            }
+
+            if ($data['rr_period'] === 'year') {
+                $endDate->subYear();
+            } else if ($data['rr_period'] === 'two_year') {
+                $endDate->subYear(2);
+            } else if ($data['rr_period'] === 'three_year') {
+                $endDate->subYear(3);
+            } else if ($data['rr_period'] === 'five_year') {
+                $endDate->subYear(5);
+            } else if ($data['rr_period'] === 'seven_year') {
+                $endDate->subYear(7);
+            } else if ($data['rr_period'] === 'ten_year') {
+                $endDate->subYear(10);
+            } else if ($data['rr_period'] === 'fifteen_year') {
+                $endDate->subYear(15);
+            }
+
+            if ($dataStartDate->gt($endDate)) {//If date is gt selected time period end date.
+                $this->addResponse('Please provide correct Rolling Return start date', 1);
+
+                return false;
+            }
+        } catch (\throwable $e) {
+            $this->addResponse('Please provide correct Rolling Return start date', 1);
+
+            return false;
+        }
+
+        $rrKeys = array_keys($scheme['rolling_returns'][$data['rr_period']]);
+
+        $rrStartDateKey = array_search($data['start_date'], $rrKeys);
+
+        $rrData = array_slice($scheme['rolling_returns'][$data['rr_period']], $rrStartDateKey);
+
+        if (count($rrData) > 0) {
+            $totalRRData = count($rrData);
+
+            $cagrs = [];
+            $distribution['negative'] = 0;
+            $distribution['0-8'] = 0;
+            $distribution['8-10'] = 0;
+            $distribution['10-12'] = 0;
+            $distribution['12-15'] = 0;
+            $distribution['15-20'] = 0;
+            $distribution['20+'] = 0;
+
+            foreach ($rrData as $date => $rr) {
+                array_push($cagrs, $rr['cagr']);
+
+                if ($rr['cagr'] < 0) {
+                    $distribution['negative']++;
+                } else if ($rr['cagr'] > 0 && $rr['cagr'] < 8) {
+                    $distribution['0-8']++;
+                } else if ($rr['cagr'] > 8 && $rr['cagr'] < 10) {
+                    $distribution['8-10']++;
+                } else if ($rr['cagr'] > 10 && $rr['cagr'] < 12) {
+                    $distribution['10-12']++;
+                } else if ($rr['cagr'] > 12 && $rr['cagr'] < 15) {
+                    $distribution['12-15']++;
+                } else if ($rr['cagr'] > 15 && $rr['cagr'] < 20) {
+                    $distribution['15-20']++;
+                } else if ($rr['cagr'] >= 20) {
+                    $distribution['20+']++;
+                }
+            }
+
+            $responseData['statistics']['total'] = count($cagrs);
+            $responseData['statistics']['average'] = numberFormatPrecision(\MathPHP\Statistics\Average::mean($cagrs), 2);
+            $responseData['statistics']['median'] = numberFormatPrecision(\MathPHP\Statistics\Average::median($cagrs), 2);
+            $responseData['statistics']['max'] = numberFormatPrecision($cagrs[\MathPHP\Search::argMax($cagrs)], 2);
+            $responseData['statistics']['min'] = numberFormatPrecision($cagrs[\MathPHP\Search::argMin($cagrs)], 2);
+            if ($distribution['negative'] > 0) {
+                $distribution['negative'] = numberFormatPrecision($distribution['negative'] * 100 / $totalRRData, 2);
+            } else {
+                $distribution['negative'] = 0.0;
+            }
+            if ($distribution['0-8'] > 0) {
+                $distribution['0-8'] = numberFormatPrecision($distribution['0-8'] * 100 / $totalRRData, 2);
+            } else {
+                $distribution['0-8'] = 0.0;
+            }
+            if ($distribution['8-10'] > 0) {
+                $distribution['8-10'] = numberFormatPrecision($distribution['8-10'] * 100 / $totalRRData, 2);
+            } else {
+                $distribution['8-10'] = 0.0;
+            }
+            if ($distribution['10-12'] > 0) {
+                $distribution['10-12'] = numberFormatPrecision($distribution['10-12'] * 100 / $totalRRData, 2);
+            } else {
+                $distribution['10-12'] = 0.0;
+            }
+            if ($distribution['12-15'] > 0) {
+                $distribution['12-15'] = numberFormatPrecision($distribution['12-15'] * 100 / $totalRRData, 2);
+            } else {
+                $distribution['12-15'] = 0.0;
+            }
+            if ($distribution['15-20'] > 0) {
+                $distribution['15-20'] = numberFormatPrecision($distribution['15-20'] * 100 / $totalRRData, 2);
+            } else {
+                $distribution['15-20'] = 0.0;
+            }
+            if ($distribution['20+'] > 0) {
+                $distribution['20+'] = numberFormatPrecision($distribution['20+'] * 100 / $totalRRData, 2);
+            } else {
+                $distribution['20+'] = 0.0;
+            }
+            $responseData['distribution'] = $distribution;
+
+            $responseData['rrData'] = $rrData;
+
+            $this->addResponse('Ok', 0, $responseData);
+
+            return $responseData;
+        }
+
+        $this->addResponse('No rolling return data found', 1);
     }
 }
