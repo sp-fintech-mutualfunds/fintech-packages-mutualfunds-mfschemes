@@ -3,10 +3,12 @@
 namespace Apps\Fintech\Packages\Mf\Schemes\Install;
 
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemes;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesAll;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavsChunks;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavsRollingReturns;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemes;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesAll;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsChunks;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsRollingReturns;
@@ -26,6 +28,14 @@ class Install extends BasePackage
                 'apps_fintech_mf_schemes'  => [
                     'schema'        => new MfSchemes,
                     'model'         => new AppsFintechMfSchemes,
+                    'configParams'  =>
+                        [
+                            'min_index_chars' => 6
+                        ]
+                ],
+                'apps_fintech_mf_schemes_all'  => [
+                    'schema'        => new MfSchemesAll,
+                    'model'         => new AppsFintechMfSchemesAll,
                     'configParams'  =>
                         [
                             'min_index_chars' => 6

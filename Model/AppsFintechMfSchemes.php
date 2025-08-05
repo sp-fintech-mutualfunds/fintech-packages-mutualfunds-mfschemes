@@ -71,6 +71,20 @@ class AppsFintechMfSchemes extends BaseModel
 
     public $fifteen_year_cagr;
 
+    public $year_rr;
+
+    public $two_year_rr;
+
+    public $three_year_rr;
+
+    public $five_year_rr;
+
+    public $seven_year_rr;
+
+    public $ten_year_rr;
+
+    public $fifteen_year_rr;
+
     public $latest_nav;
 
     public function initialize()

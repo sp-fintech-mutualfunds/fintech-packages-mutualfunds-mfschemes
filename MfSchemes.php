@@ -4,6 +4,7 @@ namespace Apps\Fintech\Packages\Mf\Schemes;
 
 use Apps\Fintech\Packages\Mf\Extractdata\MfExtractdata;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemes;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesAll;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesDetails;
 use Apps\Fintech\Packages\Mf\Schemes\Settings;
 use System\Base\BasePackage;
@@ -483,24 +484,46 @@ class MfSchemes extends BasePackage
         return [];
     }
 
-    public function getSchemeNavByDate($schemeId, $date, $latest = false)
+    public function getSchemeNavByDate($scheme, $date = null, $first = false, $latest = false)
     {
-        $scheme = $this->getSchemeById($schemeId, true, false, false);
+        if ($first) {
+            $date = $scheme['start_date'];
+        } else if ($latest) {
+            $date = $scheme['navs_last_updated'];
+        }
 
-        if ($scheme) {
-            if (isset($scheme['navs'][$date])) {
-                return $scheme['navs'][$date];
-            }
+        if (!$date) {
+            $this->addResponse('Please provide date!', 1);
 
-            if ($latest && isset($scheme['navs']['latest_nav'])) {
-                return $scheme['navs']['latest_nav'];
+            return false;
+        }
+
+        $dates = explode('-', $date);
+
+        try {
+            $file = 'apps/Fintech/Packages/Mf/Extractdata/Data/navsindex/' . $scheme['id'] . '/' . $dates[0] . '/' . $dates[1] . '/' . $dates[2] . '.json';
+
+            if ($this->localContent->fileExists($file)) {
+                $nav = $this->helper->decode($this->localContent->read($file), true);
+
+                $this->addResponse('Ok', 0, ['date' => $date, 'nav' => $nav]);
+
+                return $nav;
+            } else {
+                $this->addResponse('Navindex not available for: ' . $scheme['id'] . ' for date: ' . $date, 1);
+
+                return false;
             }
+        } catch (FilesystemException | UnableToCheckExistence | UnableToReadFile | \throwable $e) {
+            $this->addResponse($e->getMessage(), 1);
+
+            return false;
         }
 
         return false;
     }
 
-    public function getSchemeFromAmfiCodeOrSchemeId(&$data, $includeNavs = true)
+    public function getSchemeFromAmfiCodeOrSchemeId(&$data, $includeNavs = false, $includeNavsChunks = false, $includeNavsRR = false)
     {
         if (isset($data['scheme_id']) && $data['scheme_id'] !== '') {
             $schemeId = (int) $data['scheme_id'];
@@ -508,7 +531,7 @@ class MfSchemes extends BasePackage
             $schemeId = (int) $data['amfi_code'];
         }
 
-        $scheme = $this->getSchemeById($schemeId, $includeNavs, false, false);
+        $scheme = $this->getSchemeById($schemeId, $includeNavs, $includeNavsChunks, $includeNavsRR);
 
         if ($scheme) {
             $data['scheme_id'] = (int) $scheme['id'];
@@ -517,11 +540,6 @@ class MfSchemes extends BasePackage
         }
 
         return false;
-    }
-
-    public function getSchemeCompareData($data)
-    {
-
     }
 
     public function getSchemeNavChunks($data)
@@ -543,12 +561,76 @@ class MfSchemes extends BasePackage
             isset($scheme['navs_chunks']['navs_chunks'][$data['chunk_size']])
         ) {
             if ($data['chunk_size'] === 'all') {
-                $responseData['chunks'] = $scheme['navs_chunks']['navs_chunks'];
+                $responseData['chunks'][$data['chunk_size']] = $scheme['navs_chunks']['navs_chunks'];
             } else {
-                $responseData['chunks'] = $scheme['navs_chunks']['navs_chunks'][$data['chunk_size']];
+                $responseData['chunks'][$data['chunk_size']] = $scheme['navs_chunks']['navs_chunks'][$data['chunk_size']];
             }
 
-            $this->generateTrendData($scheme, $responseData);
+            $daysDiff = null;
+
+            if (isset($data['start_date']) && isset($data['end_date'])) {
+                if ($data['chunk_size'] === 'all') {
+                    $responseData['chunks'][$data['chunk_size']] = $scheme['navs_chunks']['navs_chunks'][$data['chunk_size']];
+                }
+
+                // $daysDiff = 0;
+
+                $start = (\Carbon\Carbon::parse($data['start_date']));
+                $end = (\Carbon\Carbon::parse($data['end_date']));
+
+                $daysDiff = $start->diffInDays($end);
+
+                $datesKeys = array_keys($responseData['chunks'][$data['chunk_size']]);
+                $startDateKey = array_search($data['start_date'], $datesKeys);
+
+                $responseData['chunks'][$data['chunk_size']] = array_slice($responseData['chunks'][$data['chunk_size']], $startDateKey, $daysDiff);
+
+                if ($startDateKey !== 0) {
+                    $responseData['chunks'][$data['chunk_size']] = array_values($responseData['chunks'][$data['chunk_size']]);
+
+                    $recalculatedChunks = [];
+
+                    foreach ($responseData['chunks'][$data['chunk_size']] as $chunkKey => $chunk) {
+                        if (!isset($recalculatedChunks[$chunk['date']])) {
+                            $recalculatedChunks[$chunk['date']]['nav'] = $chunk['nav'];
+                            $recalculatedChunks[$chunk['date']]['date'] = $chunk['date'];
+                            $recalculatedChunks[$chunk['date']]['timestamp'] = \Carbon\Carbon::parse($chunk['date'])->timestamp;
+
+                            if ($chunkKey !== 0) {
+                                $previousDay = $responseData['chunks'][$data['chunk_size']][$chunkKey - 1];
+
+                                $recalculatedChunks[$chunk['date']]['diff'] =
+                                    numberFormatPrecision($chunk['nav'] - $this->helper->first($responseData['chunks'][$data['chunk_size']])['nav'], 4);
+                                $recalculatedChunks[$chunk['date']]['diff_percent'] =
+                                    numberFormatPrecision(($chunk['nav'] * 100 / $this->helper->first($responseData['chunks'][$data['chunk_size']])['nav'] - 100), 2);
+
+                                $recalculatedChunks[$chunk['date']]['trajectory'] = '-';
+                                if ($chunk['nav'] > $previousDay['nav']) {
+                                    $recalculatedChunks[$chunk['date']]['trajectory'] = 'up';
+                                } else {
+                                    $recalculatedChunks[$chunk['date']]['trajectory'] = 'down';
+                                }
+
+                                $recalculatedChunks[$chunk['date']]['diff_since_inception'] =
+                                    numberFormatPrecision($chunk['nav'] - $this->helper->first($responseData['chunks'][$data['chunk_size']])['nav'], 4);
+                                $recalculatedChunks[$chunk['date']]['diff_percent_since_inception'] =
+                                    numberFormatPrecision(($chunk['nav'] * 100 / $this->helper->first($responseData['chunks'][$data['chunk_size']])['nav'] - 100), 2);
+                            } else {
+                                $recalculatedChunks[$chunk['date']]['diff'] = 0;
+                                $recalculatedChunks[$chunk['date']]['diff_percent'] = 0;
+
+                                $recalculatedChunks[$chunk['date']]['trajectory'] = '-';
+
+                                $recalculatedChunks[$chunk['date']]['diff_since_inception'] = 0;
+                                $recalculatedChunks[$chunk['date']]['diff_percent_since_inception'] = 0;
+                            }
+                        }
+                    }
+                    $responseData['chunks'][$data['chunk_size']] = $recalculatedChunks;
+                }
+            }
+
+            $this->generateTrendData($scheme, $responseData, $data, $daysDiff);
 
             $this->addResponse('Ok', 0, $responseData);
 
@@ -556,8 +638,10 @@ class MfSchemes extends BasePackage
         } else if ($data['range'] &&
                    isset($scheme['navs_chunks']['navs_chunks']['all'])
         ) {
+            $data['chunk_size'] = 'range';
+
             if (count($data['range']) < 2) {
-                $this->addResponse('Please provide correct range dates', 1);
+                $this->addResponse('Please provide correct range dates. Provide both, start and end date.', 1);
 
                 return false;
             }
@@ -567,7 +651,7 @@ class MfSchemes extends BasePackage
                 $end = (\Carbon\Carbon::parse($data['range'][1]));
 
                 if ($end->lt($start)) {
-                    $this->addResponse('Please provide correct range dates', 1);
+                    $this->addResponse('Please provide correct range dates. End date is less than start date', 1);
 
                     return false;
                 }
@@ -577,31 +661,32 @@ class MfSchemes extends BasePackage
                 if (!isset($scheme['navs_chunks']['navs_chunks']['all'][$data['range'][0]]) ||
                     !isset($scheme['navs_chunks']['navs_chunks']['all'][$data['range'][1]])
                 ) {
-                    $this->addResponse('Please provide correct range dates', 1);
+                    $this->addResponse('Please provide correct range dates. Navs for date not present.', 1);
 
                     return false;
                 }
 
                 $datesKeys = array_keys($scheme['navs_chunks']['navs_chunks']['all']);
                 $startDateKey = array_search($data['range'][0], $datesKeys);
-                $responseData['chunks'] = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
+                $responseData['chunks'][$data['chunk_size']] = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
 
                 if (count($responseData['chunks']) > 0) {
-                    $firstChunk = $this->helper->first($responseData['chunks']);
+                    $firstChunk = $this->helper->first($responseData['chunks'][$data['chunk_size']]);
 
-                    foreach ($responseData['chunks'] as $chunkDate => $chunk) {
-                        $responseData['chunks'][$chunkDate]['diff'] = numberFormatPrecision($chunk['nav'] - $firstChunk['nav'], 4);
-                        $responseData['chunks'][$chunkDate]['diff_percent'] = numberFormatPrecision(($chunk['nav'] * 100 / $firstChunk['nav'] - 100), 2);
+                    foreach ($responseData['chunks'][$data['chunk_size']] as $chunkDate => $chunk) {
+                        $responseData['chunks'][$data['chunk_size']][$chunkDate]['diff'] = numberFormatPrecision($chunk['nav'] - $firstChunk['nav'], 4);
+                        $responseData['chunks'][$data['chunk_size']][$chunkDate]['diff_percent'] = numberFormatPrecision(($chunk['nav'] * 100 / $firstChunk['nav'] - 100), 2);
                     }
 
-                    $this->generateTrendData($scheme, $responseData, $daysDiff);
+                    $this->generateTrendData($scheme, $responseData, $data, $daysDiff);
 
                     $this->addResponse('Ok', 0, $responseData);
 
                     return $responseData;
                 }
             } catch (\throwable $e) {
-                $this->addResponse('Please provide correct range dates', 1);
+                trace([$e]);
+                $this->addResponse('Exception: ' . $e->getMessage(), 1);
 
                 return false;
             }
@@ -610,11 +695,11 @@ class MfSchemes extends BasePackage
         $this->addResponse('No data found', 1);
     }
 
-    protected function generateTrendData($scheme, &$responseData, $daysDiff = null)
+    protected function generateTrendData($scheme, &$responseData, $data, $daysDiff = null)
     {
-        if (count($responseData['chunks']) !== count($scheme['navs_chunks']['navs_chunks']['all'])) {
+        if (count($responseData['chunks'][$data['chunk_size']]) !== count($scheme['navs_chunks']['navs_chunks']['all'])) {
             $datesKeys = array_keys($scheme['navs_chunks']['navs_chunks']['all']);
-            $startDateKey = array_search($this->helper->firstKey($responseData['chunks']), $datesKeys);
+            $startDateKey = array_search($this->helper->firstKey($responseData['chunks'][$data['chunk_size']]), $datesKeys);
             if ($daysDiff) {
                 $trendChunks = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
             } else {
@@ -841,5 +926,28 @@ class MfSchemes extends BasePackage
         }
 
         $this->addResponse('No rolling return data found', 1);
+    }
+
+    public function searchAllSchemes(string $schemeQueryString)
+    {
+        $this->setModelToUse(AppsFintechMfSchemesAll::class);
+
+        if ($this->config->databasetype === 'db') {
+            $schemes =
+                $this->getByParams(
+                    [
+                        'conditions'    => 'name LIKE :sName:',
+                        'bind'          => [
+                            'sName'     => '%' . $schemeQueryString . '%'
+                        ]
+                    ]
+                );
+        } else {
+            $schemes = $this->getByParams(['conditions' => ['name', 'LIKE', '%' . $schemeQueryString . '%']]);
+        }
+
+        $this->addResponse('Ok', 0, ['schemes' => $schemes]);
+
+        return $schemes;
     }
 }
