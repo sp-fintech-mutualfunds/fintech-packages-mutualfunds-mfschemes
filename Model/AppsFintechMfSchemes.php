@@ -4,7 +4,9 @@ namespace Apps\Fintech\Packages\Mf\Schemes\Model;
 
 use Apps\Fintech\Packages\Mf\Amcs\Model\AppsFintechMfAmcs;
 use Apps\Fintech\Packages\Mf\Categories\Model\AppsFintechMfCategories;
-use Apps\Fintech\Packages\Mf\Navs\Model\AppsFintechMfNavs;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesCustom;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesCustomChunks;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesCustomRollingReturns;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesDetails;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsChunks;
@@ -100,15 +102,6 @@ class AppsFintechMfSchemes extends BaseModel
 
         $this->modelRelations['navs']['relationObj'] = $this->hasOne(
             'id',
-            AppsFintechMfNavs::class,
-            'id',
-            [
-                'alias'         => 'navs'
-            ]
-        );
-
-        $this->modelRelations['navs']['relationObj'] = $this->hasOne(
-            'id',
             AppsFintechMfSchemesNavs::class,
             'id',
             [
@@ -131,6 +124,33 @@ class AppsFintechMfSchemes extends BaseModel
             'id',
             [
                 'alias'         => 'rolling_returns'
+            ]
+        );
+
+        $this->modelRelations['custom']['relationObj'] = $this->hasOne(
+            'id',
+            AppsFintechMfSchemesCustom::class,
+            'id',
+            [
+                'alias'         => 'custom'
+            ]
+        );
+
+        $this->modelRelations['custom_chunks']['relationObj'] = $this->hasOne(
+            'id',
+            AppsFintechMfSchemesCustomChunks::class,
+            'id',
+            [
+                'alias'         => 'custom_chunks'
+            ]
+        );
+
+        $this->modelRelations['custom_rolling_returns']['relationObj'] = $this->hasOne(
+            'id',
+            AppsFintechMfSchemesCustomRollingReturns::class,
+            'id',
+            [
+                'alias'         => 'custom_rolling_returns'
             ]
         );
 

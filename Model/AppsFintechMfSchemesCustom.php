@@ -4,7 +4,7 @@ namespace Apps\Fintech\Packages\Mf\Schemes\Model;
 
 use System\Base\BaseModel;
 
-class AppsFintechMfSchemesNavs extends BaseModel
+class AppsFintechMfSchemesCustom extends BaseModel
 {
     public $id;
 

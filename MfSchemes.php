@@ -2,11 +2,14 @@
 
 namespace Apps\Fintech\Packages\Mf\Schemes;
 
-use Apps\Fintech\Packages\Mf\Extractdata\MfExtractdata;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemes;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesAll;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesDetails;
 use Apps\Fintech\Packages\Mf\Schemes\Settings;
+use Apps\Fintech\Packages\Mf\Tools\Extractdata\MfToolsExtractdata;
+use Apps\Fintech\Packages\Mf\Tools\Patterns\MfToolsPatterns;
+use League\Flysystem\FilesystemException;
+use League\Flysystem\UnableToWriteFile;
 use System\Base\BasePackage;
 
 class MfSchemes extends BasePackage
@@ -21,8 +24,11 @@ class MfSchemes extends BasePackage
 
     protected $schemes = [];
 
-    public function getSchemeById(int $id, $includeNavs = true, $includeNavsChunks = true, $includeNavsRR = true)
-    {
+    public function getSchemeById(
+        int $id,
+        $includeNavs = true, $includeNavsChunks = true, $includeNavsRR = true,
+        $includeCustom = false, $includeCustomChunks = false, $includeCustomRR = false
+    ) {
         if (isset($this->schemes[$id])) {
             if (!$includeNavs) {
                 unset($this->schemes[$id]['navs']);
@@ -34,6 +40,18 @@ class MfSchemes extends BasePackage
 
             if (!$includeNavsRR) {
                 unset($this->schemes[$id]['rolling_returns']);
+            }
+
+            if (!$includeCustom) {
+                unset($this->schemes[$id]['custom']);
+            }
+
+            if (!$includeCustomChunks) {
+                unset($this->schemes[$id]['custom_chunks']);
+            }
+
+            if (!$includeCustomRR) {
+                unset($this->schemes[$id]['custom_rolling_returns']);
             }
 
             return $this->schemes[$id];
@@ -61,6 +79,26 @@ class MfSchemes extends BasePackage
                 $scheme['navs_chunks'] = $this->model->getnavs_chunks()->toArray();
             }
 
+            $scheme['rolling_returns'] = [];
+            if ($this->model->getrolling_returns()) {
+                $scheme['rolling_returns'] = $this->model->getrolling_returns()->toArray();
+            }
+
+            $scheme['custom'] = [];
+            if ($this->model->getcustom()) {
+                $scheme['custom'] = $this->model->getcustom()->toArray();
+            }
+
+            $scheme['custom_chunks'] = [];
+            if ($this->model->getcustom_chunks()) {
+                $scheme['custom_chunks'] = $this->model->getcustom_chunks()->toArray();
+            }
+
+            $scheme['custom_rolling_returns'] = [];
+            if ($this->model->getcustom_rolling_returns()) {
+                $scheme['custom_rolling_returns'] = $this->model->getcustom_rolling_returns()->toArray();
+            }
+
             $scheme['category'] = [];
             if ($this->model->getcategory()) {
                 $scheme['category'] = $this->model->getcategory()->toArray();
@@ -83,6 +121,22 @@ class MfSchemes extends BasePackage
                 unset($scheme['navs_chunks']);
             }
 
+            if (!$includeNavsRR) {
+                unset($scheme['rolling_returns']);
+            }
+
+            if (!$includeCustom) {
+                unset($scheme['custom']);
+            }
+
+            if (!$includeCustomChunks) {
+                unset($scheme['custom_chunks']);
+            }
+
+            if (!$includeCustomRR) {
+                unset($scheme['custom_rolling_returns']);
+            }
+
             return $scheme;
         } else {
             if ($this->ffData) {
@@ -102,11 +156,23 @@ class MfSchemes extends BasePackage
                     unset($this->ffData['rolling_returns']);
                 }
 
+                if (!$includeCustom) {
+                    unset($this->ffData['custom']);
+                }
+
+                if (!$includeCustomChunks) {
+                    unset($this->ffData['custom_chunks']);
+                }
+
+                if (!$includeCustomRR) {
+                    unset($this->ffData['custom_rolling_returns']);
+                }
+
                 return $this->ffData;
             }
         }
 
-        return null;
+        return false;
     }
 
     public function getMfTypeByIsin($isin)
@@ -253,7 +319,7 @@ class MfSchemes extends BasePackage
 
                 $data['isin'] = $scheme['isin'];
 
-                $mfExtractdataPackage = new MfExtractdata;
+                $mfExtractdataPackage = new MfToolsExtractdata;
 
                 $remoteScheme = $mfExtractdataPackage->sync($data);
 
@@ -498,26 +564,8 @@ class MfSchemes extends BasePackage
             return false;
         }
 
-        $dates = explode('-', $date);
-
-        try {
-            $file = 'apps/Fintech/Packages/Mf/Extractdata/Data/navsindex/' . $scheme['id'] . '/' . $dates[0] . '/' . $dates[1] . '/' . $dates[2] . '.json';
-
-            if ($this->localContent->fileExists($file)) {
-                $nav = $this->helper->decode($this->localContent->read($file), true);
-
-                $this->addResponse('Ok', 0, ['date' => $date, 'nav' => $nav]);
-
-                return $nav;
-            } else {
-                $this->addResponse('Navindex not available for: ' . $scheme['id'] . ' for date: ' . $date, 1);
-
-                return false;
-            }
-        } catch (FilesystemException | UnableToCheckExistence | UnableToReadFile | \throwable $e) {
-            $this->addResponse($e->getMessage(), 1);
-
-            return false;
+        if (isset($scheme['navs'][$date])) {
+            return $scheme['navs'][$date];
         }
 
         return false;
@@ -542,9 +590,23 @@ class MfSchemes extends BasePackage
         return false;
     }
 
-    public function getSchemeNavChunks($data)
+    public function getSchemeNavChunks($data, $customChunks = false)
     {
-        $scheme = $this->getSchemeById((int) $data['scheme_id'], false, true, false);
+        if ($customChunks) {
+            $scheme = $this->getSchemeById((int) $data['scheme_id'], false, false, false, false, true);
+
+            if (!$scheme['custom_chunks'] || !isset($scheme['custom_chunks']['navs_chunks'])) {
+                $this->addResponse('Custom chunks for scheme not found', 1, []);
+
+                return false;
+            }
+
+            $chunks = $scheme['custom_chunks']['navs_chunks'];
+        } else {
+            $scheme = $this->getSchemeById((int) $data['scheme_id'], false, true, false);
+
+            $chunks = $scheme['navs_chunks']['navs_chunks'];
+        }
 
         $responseData = [];
         $responseData['chunks'] = [];
@@ -557,20 +619,22 @@ class MfSchemes extends BasePackage
             $responseData['trend'][$trend] = 0;
         }
 
+        // trace([$chunks[$data['chunk_size']]]);
         if (isset($data['chunk_size']) &&
-            isset($scheme['navs_chunks']['navs_chunks'][$data['chunk_size']])
+            isset($chunks[$data['chunk_size']])
         ) {
+            // trace([$chunks]);
             if ($data['chunk_size'] === 'all') {
-                $responseData['chunks'][$data['chunk_size']] = $scheme['navs_chunks']['navs_chunks'];
+                $responseData['chunks'][$data['chunk_size']] = $chunks;
             } else {
-                $responseData['chunks'][$data['chunk_size']] = $scheme['navs_chunks']['navs_chunks'][$data['chunk_size']];
+                $responseData['chunks'][$data['chunk_size']] = $chunks[$data['chunk_size']];
             }
 
             $daysDiff = null;
 
             if (isset($data['start_date']) && isset($data['end_date'])) {
                 if ($data['chunk_size'] === 'all') {
-                    $responseData['chunks'][$data['chunk_size']] = $scheme['navs_chunks']['navs_chunks'][$data['chunk_size']];
+                    $responseData['chunks'][$data['chunk_size']] = $chunks[$data['chunk_size']];
                 }
 
                 // $daysDiff = 0;
@@ -630,14 +694,14 @@ class MfSchemes extends BasePackage
                 }
             }
 
-            $this->generateTrendData($scheme, $responseData, $data, $daysDiff);
+            // if (!$customChunks) {
+                $this->generateTrendData($scheme, $responseData, $data, $daysDiff, $customChunks);
+            // }
 
             $this->addResponse('Ok', 0, $responseData);
 
             return $responseData;
-        } else if ($data['range'] &&
-                   isset($scheme['navs_chunks']['navs_chunks']['all'])
-        ) {
+        } else if ($data['range'] && isset($chunks['all'])) {
             $data['chunk_size'] = 'range';
 
             if (count($data['range']) < 2) {
@@ -658,17 +722,17 @@ class MfSchemes extends BasePackage
 
                 $daysDiff = $start->diffInDays($end);
 
-                if (!isset($scheme['navs_chunks']['navs_chunks']['all'][$data['range'][0]]) ||
-                    !isset($scheme['navs_chunks']['navs_chunks']['all'][$data['range'][1]])
+                if (!isset($chunks['all'][$data['range'][0]]) ||
+                    !isset($chunks['all'][$data['range'][1]])
                 ) {
                     $this->addResponse('Please provide correct range dates. Navs for date not present.', 1);
 
                     return false;
                 }
 
-                $datesKeys = array_keys($scheme['navs_chunks']['navs_chunks']['all']);
+                $datesKeys = array_keys($chunks['all']);
                 $startDateKey = array_search($data['range'][0], $datesKeys);
-                $responseData['chunks'][$data['chunk_size']] = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
+                $responseData['chunks'][$data['chunk_size']] = array_slice($chunks['all'], $startDateKey, $daysDiff + 1);
 
                 if (count($responseData['chunks']) > 0) {
                     $firstChunk = $this->helper->first($responseData['chunks'][$data['chunk_size']]);
@@ -678,7 +742,9 @@ class MfSchemes extends BasePackage
                         $responseData['chunks'][$data['chunk_size']][$chunkDate]['diff_percent'] = numberFormatPrecision(($chunk['nav'] * 100 / $firstChunk['nav'] - 100), 2);
                     }
 
-                    $this->generateTrendData($scheme, $responseData, $data, $daysDiff);
+                    // if (!$customChunks) {
+                        $this->generateTrendData($scheme, $responseData, $data, $daysDiff, $customChunks);
+                    // }
 
                     $this->addResponse('Ok', 0, $responseData);
 
@@ -695,18 +761,24 @@ class MfSchemes extends BasePackage
         $this->addResponse('No data found', 1);
     }
 
-    protected function generateTrendData($scheme, &$responseData, $data, $daysDiff = null)
+    protected function generateTrendData($scheme, &$responseData, $data, $daysDiff = null, $customChunks = false)
     {
-        if (count($responseData['chunks'][$data['chunk_size']]) !== count($scheme['navs_chunks']['navs_chunks']['all'])) {
-            $datesKeys = array_keys($scheme['navs_chunks']['navs_chunks']['all']);
+        if ($customChunks) {
+            $chunks = $scheme['custom_chunks']['navs_chunks'];
+        } else {
+            $chunks = $scheme['navs_chunks']['navs_chunks'];
+        }
+
+        if (count($responseData['chunks'][$data['chunk_size']]) !== count($chunks['all'])) {
+            $datesKeys = array_keys($chunks['all']);
             $startDateKey = array_search($this->helper->firstKey($responseData['chunks'][$data['chunk_size']]), $datesKeys);
             if ($daysDiff) {
-                $trendChunks = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey, $daysDiff + 1);
+                $trendChunks = array_slice($chunks['all'], $startDateKey, $daysDiff + 1);
             } else {
-                $trendChunks = array_slice($scheme['navs_chunks']['navs_chunks']['all'], $startDateKey);
+                $trendChunks = array_slice($chunks['all'], $startDateKey);
             }
         } else {
-            $trendChunks = $scheme['navs_chunks']['navs_chunks']['all'];
+            $trendChunks = $chunks['all'];
         }
 
         $responseData['trend']['totalDays'] = count($trendChunks);
@@ -768,7 +840,7 @@ class MfSchemes extends BasePackage
         }
     }
 
-    public function getSchemeRollingReturns($data)
+    public function getSchemeRollingReturns($data, $customRollingReturns = false)
     {
         if (!isset($data['scheme_id'])) {
             $this->addResponse('Please provide Scheme ID', 1);
@@ -782,18 +854,48 @@ class MfSchemes extends BasePackage
             return false;
         }
 
-        $scheme = $this->getSchemeById((int) $data['scheme_id'], false, false, true);
+        if ($customRollingReturns) {
+            $scheme = $this->getSchemeById((int) $data['scheme_id'], false, false, false, true, false, true);
 
-        if (!isset($scheme['rolling_returns'][$data['rr_period']])) {
-            $this->addResponse('Rolling Returns for period not available.', 1);
+            if (!isset($scheme['custom_rolling_returns']) || !isset($scheme['custom_rolling_returns'][$data['rr_period']])) {
+                $this->addResponse('Custom rolling returns for scheme not found', 1, []);
 
-            return false;
+                return false;
+            }
+
+            $rollingReturns = $scheme['custom_rolling_returns'];
+
+            $scheme['start_date'] = $this->helper->first($scheme['custom']['navs'])['date'];
+            $scheme['navs_last_updated'] = $this->helper->last($scheme['custom']['navs'])['date'];
+
+            unset($scheme['custom']);
+        } else {
+            $scheme = $this->getSchemeById((int) $data['scheme_id'], false, false, true);
+
+            if (!isset($scheme['rolling_returns'][$data['rr_period']])) {
+                $this->addResponse('Rolling Returns for period not available.', 1);
+
+                return false;
+            }
+
+            $rollingReturns = $scheme['rolling_returns'];
         }
 
         if (!isset($data['start_date'])) {
             $this->addResponse('Please provide Rolling Return Start Date', 1);
 
             return false;
+        }
+
+        if (isset($data['compare_start_date'])) {
+            $startDate = \Carbon\Carbon::parse($data['start_date']);
+            $compareStartDate = \Carbon\Carbon::parse($data['compare_start_date']);
+
+            if (($startDate)->lt($compareStartDate)) {
+                $this->addResponse('Start date should not be before ' . $data['compare_start_date'], 1);
+
+                return false;
+            }
         }
 
         try {
@@ -825,6 +927,10 @@ class MfSchemes extends BasePackage
                 $endDate->subYear(10);
             } else if ($data['rr_period'] === 'fifteen_year') {
                 $endDate->subYear(15);
+            } else if ($data['rr_period'] === 'twenty_year') {
+                $endDate->subYear(20);
+            } else if ($data['rr_period'] === 'twenty_five_year') {
+                $endDate->subYear(25);
             }
 
             if ($dataStartDate->gt($endDate)) {//If date is gt selected time period end date.
@@ -838,11 +944,11 @@ class MfSchemes extends BasePackage
             return false;
         }
 
-        $rrKeys = array_keys($scheme['rolling_returns'][$data['rr_period']]);
+        $rrKeys = array_keys($rollingReturns[$data['rr_period']]);
 
         $rrStartDateKey = array_search($data['start_date'], $rrKeys);
 
-        $rrData = array_slice($scheme['rolling_returns'][$data['rr_period']], $rrStartDateKey);
+        $rrData = array_slice($rollingReturns[$data['rr_period']], $rrStartDateKey);
 
         if (count($rrData) > 0) {
             $totalRRData = count($rrData);
@@ -949,5 +1055,385 @@ class MfSchemes extends BasePackage
         $this->addResponse('Ok', 0, ['schemes' => $schemes]);
 
         return $schemes;
+    }
+
+    public function generateCustomNav($data)
+    {
+        if (!isset($data['source']) ||
+            (isset($data['source']) && $data['source'] === '') ||
+            (isset($data['source']) &&
+             ($data['source'] !== 'current_navs' && $data['source'] !== 'patterns' && $data['source'] !== 'fixed_linear' && $data['source'] !== 'fixed_random')
+            )
+        ) {
+            $this->addResponse('Please provide correct source', 1);
+
+            return;
+        }
+
+        if (!isset($data['startValue'])) {
+            $data['startValue'] = 0;
+        }
+
+        $data['startValue'] = (float) $data['startValue'];
+
+        $patterns = [];
+
+        if ($data['startValue'] == 0) {
+            $patterns[0] = 0;
+        }
+
+        if ($data['source'] === 'fixed_linear' || $data['source'] === 'fixed_random') {
+            if (!isset($data['numberOfDays']) ||
+                (isset($data['numberOfDays']) && $data['numberOfDays'] === '')
+            ) {
+                $this->addResponse('Please provide correct number of days', 1);
+
+                return;
+            }
+
+            if (!isset($data['totalPercent']) ||
+                (isset($data['totalPercent']) && $data['totalPercent'] === '')
+            ) {
+                $this->addResponse('Please provide correct total percent', 1);
+
+                return;
+            }
+
+            $data['numberOfDays'] = (int) $data['numberOfDays'];
+            $data['totalPercent'] = (float) $data['totalPercent'];
+
+            if ($data['numberOfDays'] === 0) {
+                $this->addResponse('Please provide correct number of days', 1);
+
+                return;
+            }
+
+            if ($data['totalPercent'] == 0) {
+                $this->addResponse('Please provide correct total percent', 1);
+
+                return;
+            }
+
+            $perDay = $data['totalPercent'] / $data['numberOfDays'];
+
+            for ($numberOfDays=0; $numberOfDays < $data['numberOfDays']; $numberOfDays++) {
+                $patterns[$numberOfDays + 1] = numberFormatPrecision($perDay * ($numberOfDays + 1), 2);
+
+                if ($data['startValue'] > 0) {
+                    $patterns[$numberOfDays + 1] = numberFormatPrecision($data['startValue'] + $patterns[$numberOfDays + 1], 2);
+                }
+            }
+
+            if ($data['source'] === 'fixed_linear') {
+                $this->addResponse('Ok', 0, ['pattern' => array_values($patterns)]);
+
+                return true;
+            }
+
+            if (!isset($data['between'])) {
+                $data['between'] = ['-5', '5'];
+            } else {
+                $data['between'] = explode(',', $data['between']);
+            }
+
+            foreach ($patterns as $index => &$pattern) {
+                if ($index === 0 ||
+                    $index === $this->helper->lastKey($patterns)
+                ) {
+                    continue;
+                }
+
+                $pattern = numberFormatPrecision($pattern + (mt_rand((float) $data['between'][0] * 100, (float) $data['between'][1] * 100) / 100), 2);
+            }
+        } else if ($data['source'] === 'current_navs') {
+            $scheme = $this->getSchemeById((int) $data['scheme_id'], true);
+
+            if ($scheme && isset($scheme['navs']['navs']) && count($scheme['navs']['navs']) > 0) {
+                $navs = array_values($scheme['navs']['navs']);
+
+                for ($numberOfDays = 0; $numberOfDays < count($navs); $numberOfDays++) {
+                    if (isset($navs[$numberOfDays + 1]['diff_percent_since_inception'])) {
+                        $patterns[$numberOfDays + 1] = numberFormatPrecision($navs[$numberOfDays + 1]['diff_percent_since_inception'], 2);
+
+                        if ($data['startValue'] > 0) {
+                            $patterns[$numberOfDays + 1] = numberFormatPrecision($data['startValue'] + $patterns[$numberOfDays + 1], 2);
+                        }
+                    }
+                }
+            }
+        } else if ($data['source'] === 'patterns') {
+            if (!isset($data['pattern_id'])) {
+                $this->addResponse('Please provide correct pattern ID', 1);
+
+                return;
+            }
+
+            $mfToolsPatternsPackage = $this->usePackage(MfToolsPatterns::class);
+
+            $mfToolsPattern = $mfToolsPatternsPackage->getById((int) $data['pattern_id']);
+
+            if (!$mfToolsPattern || $mfToolsPattern && !isset($mfToolsPattern['pattern'])) {
+                $this->addResponse('Please provide correct pattern ID', 1);
+
+                return;
+            }
+
+            for ($numberOfDays = 0; $numberOfDays < count($mfToolsPattern['pattern']); $numberOfDays++) {
+                if (isset($mfToolsPattern['pattern'][$numberOfDays + 1])) {
+                    $patterns[$numberOfDays + 1] = numberFormatPrecision($mfToolsPattern['pattern'][$numberOfDays + 1], 2);
+
+                    if ($data['startValue'] > 0) {
+                        $patterns[$numberOfDays + 1] = numberFormatPrecision($data['startValue'] + $patterns[$numberOfDays + 1], 2);
+                    }
+                }
+            }
+        }
+
+        $this->addResponse('Ok', 0, ['pattern' => array_values($patterns)]);
+
+        return true;
+    }
+
+    public function updateSchemeCustomNavs($data)
+    {
+        if (!isset($data['custom_navs_percent']) ||
+            (isset($data['custom_navs_percent']) && $data['custom_navs_percent'] === '')
+        ) {
+            $this->addResponse('Please provide custom navs', 1);
+
+            return;
+        }
+
+        $scheme = $this->getSchemeById((int) $data['scheme_id'], true);
+
+        if ($scheme && isset($scheme['navs']['navs']) && count($scheme['navs']['navs']) > 0) {
+            $firstDate = \Carbon\Carbon::parse($this->helper->first($scheme['navs']['navs'])['date']);
+            $firstNav = $this->helper->first($scheme['navs']['navs'])['nav'];
+        } else {
+            $firstDate = \Carbon\Carbon::parse('01-01-2007');
+            $firstNav = 0;
+        }
+
+        $data['custom_navs_percent'] = explode(',', $data['custom_navs_percent']);
+
+        $customNavs = [];
+        $previousDay = [];
+
+        array_walk($data['custom_navs_percent'], function($percent, $index) use (&$customNavs, $firstNav, $firstDate, &$previousDay) {
+            $percent = (float) $percent;
+
+            if ($index === 0) {
+                $date = $firstDate->toDateString();
+
+                $customNavs[$date] = [];
+                $customNavs[$date]['nav'] = $firstNav;
+                $customNavs[$date]['date'] = $date;
+                $customNavs[$date]['timestamp'] = $firstDate->timestamp;
+
+                $previousDay = $customNavs[$date];
+            } else {
+                $firstDate->addDay();
+                $date = $firstDate->toDateString();
+
+                $customNavs[$date] = [];
+                $customNavs[$date]['nav'] = round($firstNav + (($percent * $firstNav) / 100), 2);
+                $customNavs[$date]['date'] = $date;
+                $customNavs[$date]['timestamp'] = $firstDate->timestamp;
+                $customNavs[$date]['diff'] = numberFormatPrecision($customNavs[$date]['nav'] - $previousDay['nav'], 4);
+                $customNavs[$date]['diff_percent'] = numberFormatPrecision(($customNavs[$date]['nav'] * 100 / $previousDay['nav']) - 100, 2);
+
+                $customNavs[$date]['trajectory'] = '-';
+                if ($customNavs[$date]['nav'] > $previousDay['nav']) {
+                    $customNavs[$date]['trajectory'] = 'up';
+                } else {
+                    $customNavs[$date]['trajectory'] = 'down';
+                }
+
+                $customNavs[$date]['diff_since_inception'] = numberFormatPrecision($customNavs[$date]['nav'] - $firstNav, 4);
+                $customNavs[$date]['diff_percent_since_inception'] = $percent;
+
+                $previousDay = $customNavs[$date];
+            }
+        });
+
+        try {
+            $this->localContent->write('.ff/sp/apps_fintech_mf_schemes_custom/data/' . $scheme['id'] . '.json', $this->helper->encode(
+                [
+                    'id'            => $scheme['id'],
+                    'lastUpdated'   => $this->helper->lastKey($customNavs),
+                    'navs'          => $customNavs
+                ]
+            ));
+        } catch (FilesystemException | UnableToWriteFile | \throwable $e) {
+            $this->addResponse($e->getMessage(), 1);
+
+            return false;
+        }
+
+        //Custom Chunks
+        $chunks = [];
+        $chunks['id'] = (int) $scheme['id'];
+        $chunks['last_updated'] = $this->helper->lastKey($customNavs);
+        $chunks['navs_chunks']['all'] = $customNavs;
+
+        $datesKeys = array_keys($chunks['navs_chunks']['all']);
+
+        foreach (['week', 'month', 'threeMonth', 'sixMonth', 'year', 'threeYear', 'fiveYear', 'tenYear', 'fifteenYear', 'twentyYear', 'twentyFiveYear', 'thirtyYear'] as $time) {
+            $latestDate = \Carbon\Carbon::parse($this->helper->lastKey($chunks['navs_chunks']['all']));
+            $timeDate = null;
+
+            if ($time === 'week') {
+                $timeDate = $latestDate->subDay(6)->toDateString();
+            } else if ($time === 'month') {
+                $timeDate = $latestDate->subMonth()->toDateString();
+            } else if ($time === 'threeMonth') {
+                $timeDate = $latestDate->subMonth(3)->toDateString();
+            } else if ($time === 'sixMonth') {
+                $timeDate = $latestDate->subMonth(6)->toDateString();
+            } else if ($time === 'year') {
+                $timeDate = $latestDate->subYear()->toDateString();
+            } else if ($time === 'threeYear') {
+                $timeDate = $latestDate->subYear(3)->toDateString();
+            } else if ($time === 'fiveYear') {
+                $timeDate = $latestDate->subYear(5)->toDateString();
+            } else if ($time === 'tenYear') {
+                $timeDate = $latestDate->subYear(10)->toDateString();
+            } else if ($time === 'fifteenYear') {
+                $timeDate = $latestDate->subYear(15)->toDateString();
+            } else if ($time === 'twentyYear') {
+                $timeDate = $latestDate->subYear(20)->toDateString();
+            } else if ($time === 'twentyFiveYear') {
+                $timeDate = $latestDate->subYear(25)->toDateString();
+            } else if ($time === 'thirtyYear') {
+                $timeDate = $latestDate->subYear(30)->toDateString();
+            }
+
+            if (isset($chunks['navs_chunks']['all'][$timeDate])) {
+                $timeDateKey = array_search($timeDate, $datesKeys);
+                $timeDateChunks = array_slice($chunks['navs_chunks']['all'], $timeDateKey);
+
+                if (count($timeDateChunks) > 0) {
+                    $chunks['navs_chunks'][$time] = [];
+
+                    foreach ($timeDateChunks as $timeDateChunkDate => $timeDateChunk) {
+                        $chunks['navs_chunks'][$time][$timeDateChunkDate] = [];
+                        $chunks['navs_chunks'][$time][$timeDateChunkDate]['date'] = $timeDateChunk['date'];
+                        $chunks['navs_chunks'][$time][$timeDateChunkDate]['nav'] = $timeDateChunk['nav'];
+                        $chunks['navs_chunks'][$time][$timeDateChunkDate]['diff'] =
+                            numberFormatPrecision($timeDateChunk['nav'] - $this->helper->first($timeDateChunks)['nav'], 4);
+                        $chunks['navs_chunks'][$time][$timeDateChunkDate]['diff_percent'] =
+                            numberFormatPrecision(($timeDateChunk['nav'] * 100 / $this->helper->first($timeDateChunks)['nav'] - 100), 2);
+                    }
+                }
+            }
+        }
+
+        try {
+            $this->localContent->write('.ff/sp/apps_fintech_mf_schemes_custom_chunks/data/' . $chunks['id'] . '.json', $this->helper->encode($chunks));
+        } catch (FilesystemException | UnableToWriteFile | \throwable $e) {
+            $this->addResponse($e->getMessage(), 1);
+
+            return false;
+        }
+
+        //RollingReturns
+        $rr = [];
+        $rr['id'] = (int) $scheme['id'];
+        $rr['last_updated'] = $this->helper->lastKey($customNavs);
+
+        $latestDate = \Carbon\Carbon::parse($this->helper->lastKey($customNavs));
+        $yearBefore = $latestDate->subYear()->toDateString();
+        if (!isset($customNavs[$yearBefore])) {
+            try {
+                $this->localContent->write('.ff/sp/apps_fintech_mf_schemes_custom_rolling_returns/data/' . $rr['id'] . '.json', $this->helper->encode($rr));
+            } catch (FilesystemException | UnableToWriteFile | \throwable $e) {
+                $this->addResponse($e->getMessage(), 1);
+
+                return false;
+            }
+
+            return true;
+        }
+
+        $processingYear = null;
+
+        foreach ($customNavs as $date => $nav) {
+            foreach (['year', 'two_year', 'three_year', 'five_year', 'seven_year', 'ten_year', 'fifteen_year', 'twenty_year', 'twenty_five_year'] as $rrTerm) {
+                try {
+                    $fromDate = \Carbon\Carbon::parse($date);
+
+                    if ($fromDate->isWeekend()) {
+                        continue;
+                    }
+
+                    if (!$processingYear) {
+                        $processingYear = $fromDate->year;
+                    }
+
+                    if ($processingYear !== $fromDate->year) {
+                        $processingYear = $fromDate->year;
+                    }
+
+                    $time = null;
+
+                    if ($rrTerm === 'year') {
+                        $toDate = $fromDate->addYear()->toDateString();
+                        $time = 1;
+                    } else if ($rrTerm === 'two_year') {
+                        $toDate = $fromDate->addYear(2)->toDateString();
+                        $time = 2;
+                    } else if ($rrTerm === 'three_year') {
+                        $toDate = $fromDate->addYear(3)->toDateString();
+                        $time = 3;
+                    } else if ($rrTerm === 'five_year') {
+                        $toDate = $fromDate->addYear(5)->toDateString();
+                        $time = 5;
+                    } else if ($rrTerm === 'seven_year') {
+                        $toDate = $fromDate->addYear(7)->toDateString();
+                        $time = 7;
+                    } else if ($rrTerm === 'ten_year') {
+                        $toDate = $fromDate->addYear(10)->toDateString();
+                        $time = 10;
+                    } else if ($rrTerm === 'fifteen_year') {
+                        $toDate = $fromDate->addYear(15)->toDateString();
+                        $time = 15;
+                    } else if ($rrTerm === 'twenty_year') {
+                        $toDate = $fromDate->addYear(20)->toDateString();
+                        $time = 20;
+                    } else if ($rrTerm === 'twenty_five_year') {
+                        $toDate = $fromDate->addYear(25)->toDateString();
+                        $time = 25;
+                    }
+
+                    if (isset($rr[$rrTerm][$date])) {
+                        continue;
+                    }
+
+                    if (isset($customNavs[$toDate])) {
+                        if (!isset($rr[$rrTerm])) {
+                            $rr[$rrTerm] = [];
+                        }
+
+                        $rr[$rrTerm][$date]['from'] = $date;
+                        $rr[$rrTerm][$date]['to'] = $toDate;
+                        $rr[$rrTerm][$date]['cagr'] =
+                            numberFormatPrecision((pow(($customNavs[$toDate]['nav']/$nav['nav']),(1/$time)) - 1) * 100);
+                    }
+                } catch (\throwable $e) {
+                    $this->addResponse($e->getMessage(), 1);
+
+                    return false;
+                }
+            }
+        }
+
+        try {
+            $this->localContent->write('.ff/sp/apps_fintech_mf_schemes_custom_rolling_returns/data/' . $rr['id'] . '.json', $this->helper->encode($rr));
+        } catch (FilesystemException | UnableToWriteFile | \throwable $e) {
+            $this->addResponse($e->getMessage(), 1);
+
+            return false;
+        }
+        trace([$this->helper->last($scheme['navs']['navs']), $this->helper->last($customNavs)]);
     }
 }

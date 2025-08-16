@@ -317,7 +317,8 @@ class MfSchemes
                     'crisil_rating',
                     'closed',
                     'day_trajectory',
-                    'navs_last_updated'
+                    'navs_last_updated',
+                    'start_date'
                 ],
                 'INDEX'
             )

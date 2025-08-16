@@ -4,14 +4,22 @@ namespace Apps\Fintech\Packages\Mf\Schemes\Install;
 
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemes;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesAll;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesCustom;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesCustomChunks;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesCustomRollingReturns;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavsChunks;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavsRollingReturns;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesSnapshots;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemes;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesAll;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesCustom;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesCustomChunks;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesCustomRollingReturns;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsChunks;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsRollingReturns;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesSnapshots;
 use System\Base\BasePackage;
 use System\Base\Providers\ModulesServiceProvider\DbInstaller;
 
@@ -44,18 +52,30 @@ class Install extends BasePackage
                 'apps_fintech_mf_schemes_navs'  => [
                     'schema'        => new MfSchemesNavs,
                     'model'         => new AppsFintechMfSchemesNavs,
-                    'configParams'  =>
-                        [
-                            'min_index_chars' => 2
-                        ]
                 ],
                 'apps_fintech_mf_schemes_navs_chunks'  => [
                     'schema'        => new MfSchemesNavsChunks,
                     'model'         => new AppsFintechMfSchemesNavsChunks,
                 ],
-                'apps_fintech_mf_schemes_rolling_returns'  => [
+                'apps_fintech_mf_schemes_navs_rolling_returns'  => [
                     'schema'        => new MfSchemesNavsRollingReturns,
                     'model'         => new AppsFintechMfSchemesNavsRollingReturns,
+                ],
+                'apps_fintech_mf_schemes_custom'  => [
+                    'schema'        => new MfSchemesCustom,
+                    'model'         => new AppsFintechMfSchemesCustom,
+                ],
+                'apps_fintech_mf_schemes_custom_chunks'  => [
+                    'schema'        => new MfSchemesCustomChunks,
+                    'model'         => new AppsFintechMfSchemesCustomChunks,
+                ],
+                'apps_fintech_mf_schemes_custom_rolling_returns'  => [
+                    'schema'        => new MfSchemesCustomRollingReturns,
+                    'model'         => new AppsFintechMfSchemesCustomRollingReturns,
+                ],
+                'apps_fintech_mf_schemes_snapshots'  => [
+                    'schema'        => new MfSchemesSnapshots,
+                    'model'         => new AppsFintechMfSchemesSnapshots
                 ],
                 // 'apps_fintech_mf_schemes_details'  => [
                 //     'schema'        => new MfSchemesDetails,
