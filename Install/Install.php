@@ -11,6 +11,9 @@ use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavsChunks;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesNavsRollingReturns;
 use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesSnapshots;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesSnapshotsNavs;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesSnapshotsNavsChunks;
+use Apps\Fintech\Packages\Mf\Schemes\Install\Schema\MfSchemesSnapshotsNavsRollingReturns;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemes;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesAll;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesCustom;
@@ -20,6 +23,9 @@ use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavs;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsChunks;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesNavsRollingReturns;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesSnapshots;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesSnapshotsNavs;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesSnapshotsNavsChunks;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesSnapshotsNavsRollingReturns;
 use System\Base\BasePackage;
 use System\Base\Providers\ModulesServiceProvider\DbInstaller;
 
@@ -76,6 +82,18 @@ class Install extends BasePackage
                 'apps_fintech_mf_schemes_snapshots'  => [
                     'schema'        => new MfSchemesSnapshots,
                     'model'         => new AppsFintechMfSchemesSnapshots
+                ],
+                // 'apps_fintech_mf_schemes_snapshots_navs'  => [
+                //     'schema'        => new MfSchemesSnapshotsNavs,
+                //     'model'         => new AppsFintechMfSchemesSnapshotsNavs,
+                // ],
+                'apps_fintech_mf_schemes_snapshots_navs_chunks'  => [
+                    'schema'        => new MfSchemesSnapshotsNavsChunks,
+                    'model'         => new AppsFintechMfSchemesSnapshotsNavsChunks,
+                ],
+                'apps_fintech_mf_schemes_snapshots_navs_rolling_returns'  => [
+                    'schema'        => new MfSchemesSnapshotsNavsRollingReturns,
+                    'model'         => new AppsFintechMfSchemesSnapshotsNavsRollingReturns,
                 ],
                 // 'apps_fintech_mf_schemes_details'  => [
                 //     'schema'        => new MfSchemesDetails,

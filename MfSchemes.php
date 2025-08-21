@@ -5,6 +5,7 @@ namespace Apps\Fintech\Packages\Mf\Schemes;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemes;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesAll;
 use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesDetails;
+use Apps\Fintech\Packages\Mf\Schemes\Model\AppsFintechMfSchemesSnapshots;
 use Apps\Fintech\Packages\Mf\Schemes\Settings;
 use Apps\Fintech\Packages\Mf\Tools\Extractdata\MfToolsExtractdata;
 use Apps\Fintech\Packages\Mf\Tools\Patterns\MfToolsPatterns;
@@ -23,6 +24,8 @@ class MfSchemes extends BasePackage
     protected $settings = Settings::class;
 
     protected $schemes = [];
+
+    protected $parsedCarbon = [];
 
     public function getSchemeById(
         int $id,
@@ -175,6 +178,298 @@ class MfSchemes extends BasePackage
         return false;
     }
 
+    public function getSchemeSnapshotById($id, $timeline, $includeNavsChunks = false, $includeNavsRR = false)
+    {
+        if ($includeNavsChunks || $includeNavsRR) {
+            $scheme = $this->getSchemeById((int) $id, true, false, false);
+
+            if (!$scheme) {
+                return false;
+            }
+        }
+
+        //Increase memory_limit to 1G as the process takes a bit of memory to process the array.
+        if ((int) ini_get('memory_limit') < 1024) {
+            ini_set('memory_limit', '1024M');
+        }
+
+        try {
+            if ($this->localContent->fileExists('.ff/sp/apps_fintech_mf_schemes_snapshots/data/' . $id . '.json')) {
+                $schemeSnapshot = $this->helper->decode($this->localContent->read('.ff/sp/apps_fintech_mf_schemes_snapshots/data/' . $id . '.json'), true);
+            }
+        } catch (FilesystemException | UnableToReadFile | UnableToCheckExistence | \throwable $e) {
+            $this->addResponse($e->getMessage(), 1);
+
+            return false;
+        }
+
+        if (!isset($schemeSnapshot)) {
+            $schemeSnapshot = [];
+            $schemeSnapshot['id'] = $id;
+            $schemeSnapshot['snapshots'] = [];
+            $schemeSnapshot['navs_chunks_ids'] = [];
+            $schemeSnapshot['rolling_returns_ids'] = [];
+        }
+
+        if (!isset($schemeSnapshot['snapshots'][$timeline]) ||
+            (isset($schemeSnapshot['snapshots'][$timeline]) &&
+             !isset($schemeSnapshot['navs_chunks_ids'][$timeline]) ||
+             !isset($schemeSnapshot['rolling_returns_ids'][$timeline]))
+        ) {
+            $schemeSnapshot['snapshots'][$timeline] = [];
+
+            $mfToolsExtractDataPackage = $this->usePackage(MfToolsExtractdata::class);
+
+            if (!isset($scheme)) {
+                $this->getSchemeById($id, true, false, false);
+            }
+
+            $navs = $this->schemes[$id]['navs']['navs'];
+            $navsKeys = array_keys($navs);
+            $timelineDateKey = array_search($timeline, $navsKeys);
+
+            $navs = array_slice($navs, 0, $timelineDateKey + 1);
+
+            if (count($navs) > 0) {
+                $dbNav = [];
+                $dbNav['id'] = $id;
+                $dbNav['last_updated'] = $timeline;
+                $dbNav['navs'] = $navs;
+
+                $mfToolsExtractDataPackage->createChunks($dbNav, ['get_all_navs' => 'true'], false, $schemeSnapshot);
+                $mfToolsExtractDataPackage->createRollingReturns($dbNav, $id, ['get_all_navs' => 'true'], false, $schemeSnapshot);
+
+                try {
+                    $this->localContent->write('.ff/sp/apps_fintech_mf_schemes_snapshots/data/' . $id . '.json', $this->helper->encode($schemeSnapshot));
+                } catch (FilesystemException | UnableToWriteFile | \throwable $e) {
+                    $this->addResponse($e->getMessage(), 1);
+
+                    return false;
+                }
+            }
+        }
+
+        if ($includeNavsChunks || $includeNavsRR) {
+            $scheme = array_replace($scheme, $schemeSnapshot['snapshots'][$timeline]);
+
+            if ($includeNavsChunks) {
+                try {
+                    if ($this->localContent->fileExists('.ff/sp/apps_fintech_mf_schemes_snapshots_navs_chunks/data/' . $schemeSnapshot['navs_chunks_ids'][$timeline] . '.json')) {
+                        $scheme['navs_chunks'] = $this->helper->decode($this->localContent->read('.ff/sp/apps_fintech_mf_schemes_snapshots_navs_chunks/data/' . $schemeSnapshot['navs_chunks_ids'][$timeline] . '.json'), true);
+                    }
+                } catch (FilesystemException | UnableToReadFile | UnableToCheckExistence | \throwable $e) {
+                    $this->addResponse($e->getMessage(), 1);
+
+                    return false;
+                }
+
+                $scheme['latest_nav'] = $this->helper->last($scheme['navs_chunks']['navs_chunks']['all'])['nav'];
+                $scheme['navs_last_updated'] = $this->helper->last($scheme['navs_chunks']['navs_chunks']['all'])['date'];
+            }
+
+            if ($includeNavsRR) {
+                try {
+                    if ($this->localContent->fileExists('.ff/sp/apps_fintech_mf_schemes_snapshots_navs_rolling_returns/data/' . $schemeSnapshot['rolling_returns_ids'][$timeline] . '.json')) {
+                        $scheme['rolling_returns'] = $this->helper->decode($this->localContent->read('.ff/sp/apps_fintech_mf_schemes_snapshots_navs_rolling_returns/data/' . $schemeSnapshot['rolling_returns_ids'][$timeline] . '.json'), true);
+                    }
+                } catch (FilesystemException | UnableToReadFile | UnableToCheckExistence | \throwable $e) {
+                    $this->addResponse($e->getMessage(), 1);
+
+                    return false;
+                }
+            }
+
+            return $scheme;
+        }
+
+        return $schemeSnapshot['snapshots'][$timeline];
+    }
+
+    // protected function createSnapshotNavsChunks($id, $dbNav, $timeline)
+    // {
+    //     $chunks = [];
+    //     $chunks['last_updated'] = $timeline;
+    //     $chunks['navs_chunks']['all'] = $dbNav;
+
+    //     $datesKeys = array_keys($chunks['navs_chunks']['all']);
+
+    //     foreach (['week', 'month', 'threeMonth', 'sixMonth', 'year', 'threeYear', 'fiveYear', 'tenYear', 'fifteenYear', 'twentyYear', 'twentyFiveYear'] as $time) {
+    //         $latestDate = \Carbon\Carbon::parse($this->helper->lastKey($chunks['navs_chunks']['all']));
+    //         $timeDate = null;
+
+    //         if ($time === 'week') {
+    //             $timeDate = $latestDate->subDay(6)->toDateString();
+    //         } else if ($time === 'month') {
+    //             $timeDate = $latestDate->subMonth()->toDateString();
+    //         } else if ($time === 'threeMonth') {
+    //             $timeDate = $latestDate->subMonth(3)->toDateString();
+    //         } else if ($time === 'sixMonth') {
+    //             $timeDate = $latestDate->subMonth(6)->toDateString();
+    //         } else if ($time === 'year') {
+    //             $timeDate = $latestDate->subYear()->toDateString();
+    //         } else if ($time === 'threeYear') {
+    //             $timeDate = $latestDate->subYear(3)->toDateString();
+    //         } else if ($time === 'fiveYear') {
+    //             $timeDate = $latestDate->subYear(5)->toDateString();
+    //         } else if ($time === 'tenYear') {
+    //             $timeDate = $latestDate->subYear(10)->toDateString();
+    //         } else if ($time === 'fifteenYear') {
+    //             $timeDate = $latestDate->subYear(15)->toDateString();
+    //         } else if ($time === 'twentyYear') {
+    //             $timeDate = $latestDate->subYear(20)->toDateString();
+    //         } else if ($time === 'twentyFiveYear') {
+    //             $timeDate = $latestDate->subYear(25)->toDateString();
+    //         }
+
+    //         if (isset($chunks['navs_chunks']['all'][$timeDate])) {
+    //             $timeDateKey = array_search($timeDate, $datesKeys);
+    //             $timeDateChunks = array_slice($chunks['navs_chunks']['all'], $timeDateKey);
+
+    //             if (count($timeDateChunks) > 0) {
+    //                 $chunks['navs_chunks'][$time] = [];
+
+    //                 foreach ($timeDateChunks as $timeDateChunkDate => $timeDateChunk) {
+    //                     $chunks['navs_chunks'][$time][$timeDateChunkDate] = [];
+    //                     $chunks['navs_chunks'][$time][$timeDateChunkDate]['date'] = $timeDateChunk['date'];
+    //                     $chunks['navs_chunks'][$time][$timeDateChunkDate]['nav'] = $timeDateChunk['nav'];
+    //                     $chunks['navs_chunks'][$time][$timeDateChunkDate]['diff'] =
+    //                         numberFormatPrecision($timeDateChunk['nav'] - $this->helper->first($timeDateChunks)['nav'], 4);
+    //                     $chunks['navs_chunks'][$time][$timeDateChunkDate]['diff_percent'] =
+    //                         numberFormatPrecision(($timeDateChunk['nav'] * 100 / $this->helper->first($timeDateChunks)['nav'] - 100), 2);
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     trace([$chunks]);
+    //     try {
+    //         $this->localContent->write('.ff/sp/apps_fintech_mf_schemes_navs_chunks/data/' . $chunks['id'] . '.json', $this->helper->encode($chunks));
+    //     } catch (FilesystemException | UnableToWriteFile | \throwable $e) {
+    //         $this->addResponse($e->getMessage(), 1);
+
+    //         return false;
+    //     }
+
+    //     return true;
+    // }
+
+    // protected function createSnapshotFromRollingReturns($id, $dbNav, $timeline)
+    // {
+    //     $schemeSnapshot = [];
+    //     $schemeSnapshot['day_cagr'] = $this->helper->last($dbNav)['diff_percent'];
+    //     $schemeSnapshot['day_trajectory'] = $this->helper->last($dbNav)['trajectory'];
+
+    //     $latestDate = \Carbon\Carbon::parse($this->helper->lastKey($dbNav));
+    //     $yearBefore = $latestDate->subYear()->toDateString();
+    //     if (!isset($dbNav[$yearBefore])) {
+    //         foreach (['year', 'two_year', 'three_year', 'five_year', 'seven_year', 'ten_year', 'fifteen_year', 'twenty_year', 'twenty_five_year'] as $rrTerm) {
+    //             $schemeSnapshot[$rrTerm . '_rr'] = null;
+    //             $schemeSnapshot[$rrTerm . '_cagr'] = null;
+    //         }
+
+    //         return $schemeSnapshot;
+    //     }
+
+    //     $dbNavNavs = [];
+
+    //     foreach (['year', 'two_year', 'three_year', 'five_year', 'seven_year', 'ten_year', 'fifteen_year', 'twenty_year', 'twenty_five_year'] as $rrTerm) {
+    //         $schemeSnapshot[$rrTerm . '_rr'] = null;
+    //         $schemeSnapshot[$rrTerm . '_cagr'] = null;
+
+    //         try {
+    //             $toDate = \Carbon\Carbon::parse($timeline);
+
+    //             if ($rrTerm === 'year') {
+    //                 $fromDate = $toDate->subYear()->toDateString();
+    //             } else if ($rrTerm === 'two_year') {
+    //                 $fromDate = $toDate->subYear(2)->toDateString();
+    //             } else if ($rrTerm === 'three_year') {
+    //                 $fromDate = $toDate->subYear(3)->toDateString();
+    //             } else if ($rrTerm === 'five_year') {
+    //                 $fromDate = $toDate->subYear(5)->toDateString();
+    //             } else if ($rrTerm === 'seven_year') {
+    //                 $fromDate = $toDate->subYear(7)->toDateString();
+    //             } else if ($rrTerm === 'ten_year') {
+    //                 $fromDate = $toDate->subYear(10)->toDateString();
+    //             } else if ($rrTerm === 'fifteen_year') {
+    //                 $fromDate = $toDate->subYear(15)->toDateString();
+    //             } else if ($rrTerm === 'twenty_year') {
+    //                 $fromDate = $toDate->subYear(20)->toDateString();
+    //             } else if ($rrTerm === 'twenty_five_year') {
+    //                 $fromDate = $toDate->subYear(25)->toDateString();
+    //             }
+
+    //             if (isset($dbNav[$fromDate])) {
+    //                 $dbNavNavs[$rrTerm] = $fromDate;
+    //             } else {
+    //                 $dbNavNavs[$rrTerm] = null;
+    //             }
+    //         } catch (\throwable $e) {
+    //             trace([$e]);
+    //             $this->addResponse($e->getMessage(), 1);
+
+    //             return false;
+    //         }
+    //     }
+
+    //     $rr = [];
+
+    //     try {
+    //         if ($this->localContent->fileExists('.ff/sp/apps_fintech_mf_schemes_navs_rolling_returns/data/' . $id . '.json')) {
+    //             $rr = $this->helper->decode($this->localContent->read('.ff/sp/apps_fintech_mf_schemes_navs_rolling_returns/data/' . $id . '.json'), true);
+    //         }
+    //     } catch (FilesystemException | UnableToReadFile | UnableToCheckExistence | \throwable $e) {
+    //         $this->addResponse($e->getMessage(), 1);
+
+    //         return false;
+    //     }
+
+    //     foreach ($dbNavNavs as $rrTerm => $rrDate) {
+    //         if ($rrDate) {
+    //             if (!isset($rr[$rrTerm][$rrDate]) ||
+    //                 (isset($rr[$rrTerm]) && count($rr[$rrTerm]) === 0)
+    //             ) {
+    //                 continue;
+    //             }
+
+    //             if ($rr[$rrTerm][$rrDate]['from'] === $rrDate &&
+    //                 $rr[$rrTerm][$rrDate]['to'] === $timeline
+    //             ) {
+    //                 $schemeSnapshot[$rrTerm . '_cagr'] = $rr[$rrTerm][$rrDate]['cagr'];
+    //             }
+    //         }
+    //     }
+
+    //     //Calculate RR Average for timeframes. This will be used to narrow down our fund search.
+    //     $rrCagrs = [];
+    //     foreach ($rr as $rrTermType => $rrTermArr) {
+    //         if (is_array($rrTermArr) && isset($dbNavNavs[$rrTermType])) {
+    //             $rrKeys = array_keys($rrTermArr);
+    //             $dbNavNavsDateKey = array_search($dbNavNavs[$rrTermType], $rrKeys);
+
+    //             if ($dbNavNavsDateKey) {//We will not find an entry that falls on holiday/weekends.
+    //                 $slicedRrTermArr = array_slice($rrTermArr, 0, $dbNavNavsDateKey + 1);
+
+    //                 foreach ($slicedRrTermArr as $rrTermArrDate => $rrTermArrValue) {
+    //                     if (!isset($rrCagrs[$rrTermType])) {
+    //                         $rrCagrs[$rrTermType] = [];
+    //                     }
+
+    //                     $rrCagrs[$rrTermType][$rrTermArrDate] = $rrTermArrValue['cagr'];
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     if (count($rrCagrs) > 0) {
+    //         foreach ($rrCagrs as $rrCagrTerm => $rrCagrArr) {
+    //             $schemeSnapshot[$rrCagrTerm . '_rr'] = numberFormatPrecision(\MathPHP\Statistics\Average::mean($rrCagrArr), 2);
+    //         }
+    //     }
+
+    //     return $schemeSnapshot;
+    // }
+
     public function getMfTypeByIsin($isin)
     {
         if ($this->config->databasetype === 'db') {
@@ -203,35 +498,6 @@ class MfSchemes extends BasePackage
 
         return false;
     }
-
-    // public function getMfTypeByAmfiCode($amfi_code)
-    // {
-    //     if ($this->config->databasetype === 'db') {
-    //         $conditions =
-    //             [
-    //                 'conditions'    => 'amfi_code = :amfi_code:',
-    //                 'bind'          =>
-    //                     [
-    //                         'amfi_code'  => (int) $amfi_code
-    //                     ]
-    //             ];
-    //     } else {
-    //         $conditions =
-    //             [
-    //                 'conditions'    => [
-    //                     ['amfi_code', '=', (int) $amfi_code]
-    //                 ]
-    //             ];
-    //     }
-
-    //     $mfscheme = $this->getByParams($conditions);
-
-    //     if ($mfscheme && count($mfscheme) > 0) {
-    //         return $mfscheme[0];
-    //     }
-
-    //     return false;
-    // }
 
     public function addMfSchemes($data)
     {
@@ -319,7 +585,7 @@ class MfSchemes extends BasePackage
 
                 $data['isin'] = $scheme['isin'];
 
-                $mfExtractdataPackage = new MfToolsExtractdata;
+                $mfExtractdataPackage = $this->usePackage(MfToolsExtractdata::class);
 
                 $remoteScheme = $mfExtractdataPackage->sync($data);
 
@@ -514,19 +780,33 @@ class MfSchemes extends BasePackage
         }
 
         if ($this->config->databasetype === 'db') {
+            $condition = 'category_id = :category_id:';
+
+            if (isset($data['timeline'])) {
+                $condition = $condition . ' AND start_date <= :timeline:';
+            }
+
             $conditions =
                 [
-                    'conditions'    => 'category_id = :category_id:',
+                    'conditions'    => $condition,
                     'bind'          =>
                         [
                             'category_id'       => (int) $data['category_id'],
                         ]
                 ];
+
+            if (isset($data['timeline'])) {
+                $conditions['bind']['timeline'] = $data['timeline'];
+            }
         } else {
             $conditions =
                 [
                     'conditions'    => ['category_id', '=', (int) $data['category_id']]
                 ];
+
+            if (isset($data['timeline'])) {
+                $conditions['conditions'] = [['category_id', '=', (int) $data['category_id']], ['start_date', '<=', $data['timeline']]];
+            }
         }
 
         $schemesArr = $this->getByParams($conditions);
@@ -590,7 +870,7 @@ class MfSchemes extends BasePackage
         return false;
     }
 
-    public function getSchemeNavChunks($data, $customChunks = false)
+    public function getSchemeNavChunks($data, $customChunks = false, $timeline = false)
     {
         if ($customChunks) {
             $scheme = $this->getSchemeById((int) $data['scheme_id'], false, false, false, false, true);
@@ -603,7 +883,15 @@ class MfSchemes extends BasePackage
 
             $chunks = $scheme['custom_chunks']['navs_chunks'];
         } else {
-            $scheme = $this->getSchemeById((int) $data['scheme_id'], false, true, false);
+            if (!isset($this->schemes[$data['scheme_id']])) {
+                if ($timeline) {
+                    $scheme = $this->getSchemeSnapshotById((int) $data['scheme_id'], $timeline, true);
+                } else {
+                    $scheme = $this->getSchemeById((int) $data['scheme_id'], false, true, false);
+                }
+            } else {
+                $scheme = $this->schemes[$data['scheme_id']];
+            }
 
             $chunks = $scheme['navs_chunks']['navs_chunks'];
         }
@@ -619,11 +907,9 @@ class MfSchemes extends BasePackage
             $responseData['trend'][$trend] = 0;
         }
 
-        // trace([$chunks[$data['chunk_size']]]);
         if (isset($data['chunk_size']) &&
             isset($chunks[$data['chunk_size']])
         ) {
-            // trace([$chunks]);
             if ($data['chunk_size'] === 'all') {
                 $responseData['chunks'][$data['chunk_size']] = $chunks;
             } else {
@@ -636,8 +922,6 @@ class MfSchemes extends BasePackage
                 if ($data['chunk_size'] === 'all') {
                     $responseData['chunks'][$data['chunk_size']] = $chunks[$data['chunk_size']];
                 }
-
-                // $daysDiff = 0;
 
                 $start = (\Carbon\Carbon::parse($data['start_date']));
                 $end = (\Carbon\Carbon::parse($data['end_date']));
@@ -694,9 +978,7 @@ class MfSchemes extends BasePackage
                 }
             }
 
-            // if (!$customChunks) {
-                $this->generateTrendData($scheme, $responseData, $data, $daysDiff, $customChunks);
-            // }
+            $this->generateTrendData($scheme, $responseData, $data, $daysDiff, $customChunks);
 
             $this->addResponse('Ok', 0, $responseData);
 
@@ -742,16 +1024,13 @@ class MfSchemes extends BasePackage
                         $responseData['chunks'][$data['chunk_size']][$chunkDate]['diff_percent'] = numberFormatPrecision(($chunk['nav'] * 100 / $firstChunk['nav'] - 100), 2);
                     }
 
-                    // if (!$customChunks) {
-                        $this->generateTrendData($scheme, $responseData, $data, $daysDiff, $customChunks);
-                    // }
+                    $this->generateTrendData($scheme, $responseData, $data, $daysDiff, $customChunks);
 
                     $this->addResponse('Ok', 0, $responseData);
 
                     return $responseData;
                 }
             } catch (\throwable $e) {
-                trace([$e]);
                 $this->addResponse('Exception: ' . $e->getMessage(), 1);
 
                 return false;
@@ -840,7 +1119,7 @@ class MfSchemes extends BasePackage
         }
     }
 
-    public function getSchemeRollingReturns($data, $customRollingReturns = false)
+    public function getSchemeRollingReturns($data, $customRollingReturns = false, $timeline = false)
     {
         if (!isset($data['scheme_id'])) {
             $this->addResponse('Please provide Scheme ID', 1);
@@ -870,7 +1149,11 @@ class MfSchemes extends BasePackage
 
             unset($scheme['custom']);
         } else {
-            $scheme = $this->getSchemeById((int) $data['scheme_id'], false, false, true);
+            if ($timeline) {
+                $scheme = $this->getSchemeSnapshotById((int) $data['scheme_id'], $timeline, false, true);
+            } else {
+                $scheme = $this->getSchemeById((int) $data['scheme_id'], false, false, true);
+            }
 
             if (!isset($scheme['rolling_returns'][$data['rr_period']])) {
                 $this->addResponse('Rolling Returns for period not available.', 1);
@@ -1434,6 +1717,5 @@ class MfSchemes extends BasePackage
 
             return false;
         }
-        trace([$this->helper->last($scheme['navs']['navs']), $this->helper->last($customNavs)]);
     }
 }

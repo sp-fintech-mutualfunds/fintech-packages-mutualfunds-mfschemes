@@ -70,6 +70,27 @@ class MfSchemesNavsRollingReturns
                         'type'          => Column::TYPE_JSON,
                         'notNull'       => false,
                     ]
+                ),
+                new Column(
+                    'twenty_years',
+                    [
+                        'type'          => Column::TYPE_JSON,
+                        'notNull'       => false,
+                    ]
+                ),
+                new Column(
+                    'twenty_five_years',
+                    [
+                        'type'          => Column::TYPE_JSON,
+                        'notNull'       => false,
+                    ]
+                ),
+                new Column(
+                    'thirty_years',
+                    [
+                        'type'          => Column::TYPE_JSON,
+                        'notNull'       => false,
+                    ]
                 )
             ],
             'options' => [

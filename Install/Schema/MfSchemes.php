@@ -226,6 +226,20 @@ class MfSchemes
                     ]
                 ),
                 new Column(
+                    'twenty_year_cagr',
+                    [
+                        'type'          => Column::TYPE_FLOAT,
+                        'notNull'       => false,
+                    ]
+                ),
+                new Column(
+                    'twenty_five_year_cagr',
+                    [
+                        'type'          => Column::TYPE_FLOAT,
+                        'notNull'       => false,
+                    ]
+                ),
+                new Column(
                     'year_rr',
                     [
                         'type'          => Column::TYPE_FLOAT,
@@ -269,6 +283,20 @@ class MfSchemes
                 ),
                 new Column(
                     'fifteen_year_rr',
+                    [
+                        'type'          => Column::TYPE_FLOAT,
+                        'notNull'       => false,
+                    ]
+                ),
+                new Column(
+                    'twenty_year_rr',
+                    [
+                        'type'          => Column::TYPE_FLOAT,
+                        'notNull'       => false,
+                    ]
+                ),
+                new Column(
+                    'twenty_five_year_rr',
                     [
                         'type'          => Column::TYPE_FLOAT,
                         'notNull'       => false,

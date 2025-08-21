@@ -21,4 +21,10 @@ class AppsFintechMfSchemesNavsRollingReturns extends BaseModel
     public $ten_years;
 
     public $fifteen_years;
+
+    public $twenty_years;
+
+    public $twenty_five_years;
+
+    public $thirty_years;
 }

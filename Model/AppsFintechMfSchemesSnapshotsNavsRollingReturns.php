@@ -4,7 +4,7 @@ namespace Apps\Fintech\Packages\Mf\Schemes\Model;
 
 use System\Base\BaseModel;
 
-class AppsFintechMfSchemesCustomRollingReturns extends BaseModel
+class AppsFintechMfSchemesSnapshotsNavsRollingReturns extends BaseModel
 {
     public $id;
 

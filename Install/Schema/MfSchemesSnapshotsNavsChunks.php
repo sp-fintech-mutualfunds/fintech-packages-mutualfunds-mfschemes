@@ -3,9 +3,8 @@
 namespace Apps\Fintech\Packages\Mf\Schemes\Install\Schema;
 
 use Phalcon\Db\Column;
-use Phalcon\Db\Index;
 
-class MfSchemesSnapshots
+class MfSchemesSnapshotsNavsChunks
 {
     public function columns()
     {
@@ -22,24 +21,18 @@ class MfSchemesSnapshots
                     ]
                 ),
                 new Column(
-                    'snapshots',
+                    'last_updated',
                     [
-                        'type'          => Column::TYPE_JSON,
+                        'type'          => Column::TYPE_VARCHAR,
+                        'size'          => 15,
                         'notNull'       => true,
                     ]
                 ),
                 new Column(
-                    'navs_chunks_ids',
+                    'navs_chunks',
                     [
                         'type'          => Column::TYPE_JSON,
-                        'notNull'       => true,
-                    ]
-                ),
-                new Column(
-                    'rolling_returns_ids',
-                    [
-                        'type'          => Column::TYPE_JSON,
-                        'notNull'       => true,
+                        'notNull'       => false,
                     ]
                 )
             ],

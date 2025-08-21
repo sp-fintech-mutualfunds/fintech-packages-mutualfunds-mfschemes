@@ -5,7 +5,7 @@ namespace Apps\Fintech\Packages\Mf\Schemes\Install\Schema;
 use Phalcon\Db\Column;
 use Phalcon\Db\Index;
 
-class MfSchemesCustomRollingReturns
+class MfSchemesSnapshotsNavsRollingReturns
 {
     public function columns()
     {

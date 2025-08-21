@@ -73,6 +73,10 @@ class AppsFintechMfSchemes extends BaseModel
 
     public $fifteen_year_cagr;
 
+    public $twenty_year_cagr;
+
+    public $twenty_five_year_cagr;
+
     public $year_rr;
 
     public $two_year_rr;
@@ -86,6 +90,10 @@ class AppsFintechMfSchemes extends BaseModel
     public $ten_year_rr;
 
     public $fifteen_year_rr;
+
+    public $twenty_year_rr;
+
+    public $twenty_five_year_rr;
 
     public $latest_nav;
 
